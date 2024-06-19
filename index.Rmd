@@ -56,6 +56,7 @@ library(tidyverse)
 library(devtools)
 library(tinytable)
 library(rairtable)
+library(rmarkdown)
 
 # For tree handling
 library(ape)
@@ -71,6 +72,7 @@ library(gridExtra)
 library(ggtreeExtra)
 library(ggtree)
 library(ggh4x)
+library(UpSetR)
 
 # For statistics
 library(spaa)
@@ -81,4 +83,7 @@ library(hilldiv2)
 library(distillR)
 library(ANCOMBC)
 library(lme4)
+library(nlme)
+library(emmeans)
+library(pairwiseAdonis)
 ```

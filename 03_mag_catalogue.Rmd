@@ -11,7 +11,7 @@ load("data/data.Rdata")
 phylum_heatmap <- read_tsv("https://raw.githubusercontent.com/earthhologenome/EHI_taxonomy_colour/main/ehi_phylum_colors.tsv") %>%
     right_join(genome_metadata, by=join_by(phylum == phylum)) %>%
     arrange(match(genome, genome_tree$tip.label)) %>%
-    select(genome,phylum) %>%
+    dplyr::select(genome,phylum) %>%
     mutate(phylum = factor(phylum, levels = unique(phylum))) %>%
     column_to_rownames(var = "genome")
 
@@ -54,16 +54,25 @@ circular_tree <-  circular_tree +
 
 # Add text
 circular_tree <-  circular_tree +
-        annotate('text', x=2.7, y=0, label='            Phylum', family='arial', size=3.5) +
-        annotate('text', x=3.1, y=0, label='                         Genome quality', family='arial', size=3.5) +
-        annotate('text', x=3.5, y=0, label='                     Genome size', family='arial', size=3.5)
+        annotate('text', x=3.5, y=0, label='            Phylum', family='arial', size=3.5) +
+        annotate('text', x=4.5, y=0, label='                         Genome quality', family='arial', size=3.5) +
+        annotate('text', x=5.0, y=0, label='                     Genome size', family='arial', size=3.5)
 
 #Plot circular tree
 circular_tree %>% open_tree(30) %>% rotate_tree(90)
 ```
+
 ## Taxonomy overview
 
-### Domains
+**Number of MAGs**
+
+```{r nmags, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+nmags <- nrow(genome_counts_filt)
+cat(nmags)
+```
+
+
+**Domains**
 ```{r genome_taxonomy_domains}
 genome_metadata %>% 
   group_by(domain) %>%
@@ -72,7 +81,7 @@ genome_metadata %>%
   tt()
 ```
 
-### Archaea
+**Archaea**
 
 ```{r genome_taxonomy_archaea}
 genome_metadata %>% 
@@ -83,7 +92,7 @@ genome_metadata %>%
   tt()
 ```
 
-# Bacteria
+**Bacteria**
 
 ```{r genome_taxonomy_bacteria}
 genome_metadata %>% 
@@ -94,8 +103,121 @@ genome_metadata %>%
   tt()
 ```
 
+**Number of MAGs without phyla-level annotation**
+```{r nonphyla, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+nonphylum <- genome_metadata %>%
+    filter(phylum == "p__") %>%
+    nrow()
+cat(nonphylum)
+
+genome_metadata %>%
+  filter(phylum == "p__") %>%
+  summarise_at(c("completeness", "contamination"), mean, na.rm = TRUE)
+```
+
+**Number of MAGs without class-level annotation**
+```{r nonclass, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+nonclass <- genome_metadata %>%
+    filter(class == "c__") %>%
+    nrow()
+cat(nonclass)
+
+genome_metadata %>%
+  filter(class == "c__") %>%
+  summarise_at(c("completeness", "contamination"), mean, na.rm = TRUE)
+```
+
+**Number of MAGs without order-level annotation**
+```{r nonor, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+nonorder <- genome_metadata %>%
+    filter(order == "o__") %>%
+    nrow()
+cat(nonorder)
+
+genome_metadata %>%
+  filter(order == "o__") %>%
+  summarise_at(c("completeness", "contamination"), mean, na.rm = TRUE)
+```
+
+**Number of MAGs without family-level annotation**
+```{r nonfa, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+nonfamily <- genome_metadata %>%
+    filter(family == "f__") %>%
+    nrow()
+cat(nonfamily)
+
+genome_metadata %>%
+  filter(family == "f__") %>%
+  summarise_at(c("completeness", "contamination"), mean, na.rm = TRUE)
+```
+
+**Number of MAGs without genus-level annotation**
+```{r nongen, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+nongenus <- genome_metadata %>%
+    filter(genus == "g__") %>%
+    nrow()
+cat(nongenus)
+# genome_metadata %>%
+#   filter(genus == "g__") %>%
+#   summarise_at(c("completeness", "contamination"), mean, na.rm = TRUE)
+```
+
+**Percentage of MAGs without species-level annotation**
+```{r sp_percet_gen, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+perct <- nongenus*100/nmags
+cat(perct)
+```
+
+**Number of MAGs without species-level annotation**
+```{r nonspe, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+nonspecies <- genome_metadata %>%
+    filter(species == "s__") %>%
+    nrow()
+cat(nonspecies)
+```
+
+**Percentage of MAGs without species-level annotation**
+```{r sp_percet, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+perct <- nonspecies*100/nmags
+cat(perct)
+```
+
+**Number of MAGs with species-level annotation**
+```{r speci, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+species <- genome_metadata %>%
+    filter(species != "s__") %>%
+    nrow()
+cat(species)
+```
+
+### MAGs shared across locations
+
+```{r chart1, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+genome_counts_rel <- genome_counts_filt %>%
+  mutate_at(vars(-genome),~./sum(.)) %>%
+  column_to_rownames(., "genome")
+  
+genome_counts_rel_pa=1*(genome_counts_rel>0)
+#MAGrel_pa[1:6,1:6]
+table_upset_analysis_cont=t(aggregate(t(genome_counts_rel_pa),by=list(sample_metadata$type),FUN=sum)[,-1])
+colnames(table_upset_analysis_cont)=levels(as.factor(sample_metadata$type))
+table_upset_analysis=(table_upset_analysis_cont>0)*1
+table_upset_analysis=data.frame(table_upset_analysis)
+table_upset_analysis=apply(table_upset_analysis,2,as.integer)
+rownames(table_upset_analysis) <- rownames(genome_counts_rel_pa)
+
+#pdf("figures/MAG_intersection.pdf",width=8,height=6, onefile=F)
+upset(as.data.frame(table_upset_analysis),
+  keep.order = T,
+  sets = rev(c("natural","protected","urban")),
+  sets.bar.color= rev(type_colors),
+  mb.ratio = c(0.55, 0.45), order.by = "freq")
+#dev.off()
+```
+
 ## Genome quality
 
+### Mean completeness and contamination
 ```{r genome_quality}
 genome_metadata %>% 
     summarise(completeness_mean=mean(completeness) %>% round(2) %>% as.character(), 
@@ -107,11 +229,22 @@ genome_metadata %>%
     tt()
 ```
 
-```{r genome_quality_plot, message=FALSE, warning=FALSE, fig.height=8, fig.width=10, fig.fullwidth=TRUE}
+### Medium-quality Mags (>70% completeness, <10% contamination)
+```{r Medium_quality_Mags}
+genome_metadata %>% filter(completeness >=70 & contamination <=10) %>% 
+  nrow()
+```
 
+### High-quality Mags (>95% completeness, <5% contamination)
+```{r high_quality_Mags}
+genome_metadata %>% filter(completeness >=95 & contamination <=5) %>% 
+  nrow()
+```
+
+```{r genome_quality_plot, message=FALSE, warning=FALSE, fig.height=8, fig.width=10, fig.fullwidth=TRUE}
 #Generate quality biplot
 genome_biplot <- genome_metadata %>%
-  select(c(genome,domain,phylum,completeness,contamination,length)) %>%
+  dplyr::select(c(genome,domain,phylum,completeness,contamination,length)) %>%
   arrange(match(genome, rev(genome_tree$tip.label))) %>% #sort MAGs according to phylogenetic tree
   ggplot(aes(x=completeness,y=contamination,size=length,color=phylum)) +
               geom_point(alpha=0.7) +
@@ -227,7 +360,7 @@ function_ordination <- tSNE_function$Y %>%
                 mutate(genome=rownames(function_table)) %>%
                 inner_join(genome_metadata, by="genome") %>%
                 rename(tSNE1="V1", tSNE2="V2") %>%
-                select(genome,phylum,tSNE1,tSNE2, length) %>%
+                dplyr::select(genome,phylum,tSNE1,tSNE2, length) %>%
                 ggplot(aes(x = tSNE1, y = tSNE2, color = phylum, size=length))+
                             geom_point(shape=16, alpha=0.7) +
                             scale_color_manual(values=phylum_colors) +

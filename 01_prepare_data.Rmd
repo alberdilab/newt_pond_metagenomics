@@ -19,28 +19,35 @@ sample_metadata <- read_tsv("data/DMB0157_metadata.tsv.gz") %>%
         region %in% c("Eskoriatza","Aia","Errenteria","Zarautz") ~ "protected",
         region %in% c("Donostia","Orio") ~ "urban",
         TRUE ~ NA_character_ # Default case if no match
-      ))
+      ))%>%
+  filter(sample_type=="Faecal")
 ```
 
 ### Read counts
 
 ```{r load_read_counts, warning=FALSE, comments="", message=FALSE, eval=FALSE}
 read_counts <- read_tsv("data/DMB0157_counts.tsv.gz") %>%
-    rename(genome=1)
-```
-
-### Genome base hits
-
-```{r load_genome_hits, warning=FALSE, comments="", message=FALSE, eval=FALSE}
-genome_coverage <- read_tsv("data/DMB0157_coverage.tsv.gz") %>%
-    rename(genome=1)
+  rename(genome=1) %>%
+  select(c("genome",sample_metadata$sample))
 ```
 
 ### Genome taxonomy
 
 ```{r load_genome_metadata, warning=FALSE, comments="", message=FALSE, eval=FALSE}
 genome_metadata <- read_tsv("data/DMB0157_mag_info.tsv.gz") %>%
-    rename(length=mag_size)
+  rename(length=mag_size) %>%
+  semi_join(., read_counts, by = "genome") %>% 
+  arrange(match(genome,read_counts$genome))
+```
+
+### Genome base hits
+
+```{r load_genome_hits, warning=FALSE, comments="", message=FALSE, eval=FALSE}
+genome_coverage <- read_tsv("data/DMB0157_coverage.tsv.gz") %>%
+  rename(genome=1) %>%
+  dplyr::select(c("genome",sample_metadata$sample)) %>% 
+  semi_join(., genome_metadata, by = "genome")%>%
+  arrange(match(genome, genome_metadata$genome))
 ```
 
 ### Genome tree
@@ -85,10 +92,48 @@ genome_counts_filt <- read_counts_filt %>%
   mutate(across(where(is.numeric), ~ . / (genome_metadata$length / readlength) ))
 ```
 
+****Sample without genome counts****
+```{r exclut_sample, warning=FALSE, comments="", message=FALSE, eval=FALSE}
+genome_counts_filt %>%
+  select_if(~ !is.numeric(.) || sum(.) == 0)%>%
+  select(-genome) %>% 
+  colnames()
+```
+
+****Mag without reads****
+```{r exclut_data, warning=FALSE, comments="", message=FALSE, eval=FALSE}
+genome_counts_filt %>%
+  filter(rowSums(across(where(is.numeric)))==0) %>% 
+  column_to_rownames(., "genome") %>% 
+  rownames()
+```
+
+### Filter the data
+
+```{r filter_data, warning=FALSE, comments="", message=FALSE, eval=FALSE}
+genome_counts_filt <- genome_counts_filt %>%
+  select_if(~ !is.numeric(.) || sum(.) != 0)%>%
+  filter(rowSums(across(where(is.numeric)))!=0)
+
+genome_metadata <- genome_metadata %>%
+  semi_join(., genome_counts_filt, by = "genome")
+
+sample_metadata <- sample_metadata %>%
+      filter(sample %in% colnames(genome_counts_filt))
+
+genome_tree <- keep.tip(genome_tree, tip=genome_metadata$genome) 
+```
+
+
 ### Distill annotations into GIFTs 
 
 ```{r distill_annotations, warning=FALSE, comments="", message=FALSE, eval=FALSE}
-genome_gifts <- distill(genome_annotations,GIFT_db,genomecol=2,annotcol=c(9,10,19), verbosity=F)
+genome_gifts_raw <- distill(genome_annotations,GIFT_db,genomecol=2,annotcol=c(9,10,19), verbosity=F)
+```
+```{r distill_annotations_filt, warning=FALSE, comments="", message=FALSE, eval=FALSE}
+genome_counts_filt_func <- genome_counts_filt[genome_counts_filt$genome %in% rownames(genome_gifts),]
+genome_gifts <- genome_gifts_raw[genome_counts_filt_func$genome,]
+genome_gifts <- genome_gifts[, colSums(genome_gifts != 0) > 0]
 ```
 
 ## Prepare color scheme
@@ -103,6 +148,32 @@ phylum_colors <- read_tsv("https://raw.githubusercontent.com/earthhologenome/EHI
     unique() %>%
     arrange(phylum) %>%
     pull(colors, name=phylum)
+
+location_colors <- c("#444D4F",'#3D5C61','#41B6C0','#90C8C5','#E5D388','#BFA366',"#bb6749","#834630",'#6E5244')
+
+type_colors <- c("#e6c9e0","#bd70ae","#753568")
+
+season_colors <- c("#009270","#ac5c4c")
+
+```
+
+## Prepare a phyloseq object
+
+```{r phyloseq_objects, warning=FALSE, comments="", message=FALSE, eval=FALSE}
+phylo_samples <- sample_metadata %>% 
+  column_to_rownames("sample") %>% 
+  sample_data() #convert to phyloseq sample_data object
+phylo_genome <- genome_counts_filt %>% 
+  column_to_rownames("genome") %>% 
+  otu_table(., taxa_are_rows = TRUE)
+phylo_taxonomy <- genome_metadata %>%
+  column_to_rownames("genome") %>% 
+  as.matrix() %>% 
+  tax_table() #convert to phyloseq tax_table object
+phylo_tree <- phy_tree(genome_tree) 
+
+physeq_genome <- phyloseq(phylo_genome, phylo_taxonomy, phylo_samples,phylo_tree)
+physeq_genome_clr <- microbiome::transform(physeq_genome, 'clr')
 ```
 
 ## Wrap working objects
@@ -116,7 +187,12 @@ save(sample_metadata,
      genome_counts, 
      genome_counts_filt, 
      genome_tree,
+     genome_gifts_raw,
      genome_gifts, 
      phylum_colors,
+     location_colors,
+     type_colors,
+     physeq_genome,
+     physeq_genome_clr,
      file = "data/data.Rdata")
 ```
