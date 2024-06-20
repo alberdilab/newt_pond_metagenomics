@@ -6,7 +6,7 @@ load("data/data.Rdata")
 
 ## Taxonomy overview 
 
-****Mean percentage of Bacteria and Archaea in the samples****
+**Mean percentage of Bacteria and Archaea in the samples**
 
 ```{r bateria_archaea_summary, warning=FALSE, comments="", message=FALSE}
 domain_summary <- genome_counts_filt %>%
@@ -23,11 +23,6 @@ domain_summary %>%
     arrange(-mean) %>%
     tt()
 ```
-
-
-
-## Bacteria
-### Stacked barplot
 
 ```{r taxonomy_barplot, fig.height=6, fig.width=10, fig.fullwidth=TRUE}
 #ggsave("figures/mtcars.png", width = 10, height = 6)
@@ -68,7 +63,7 @@ genome_metadata %>%
   length()
 ```
 
-**Number of Bacteria phyla in natural ponds**
+**Bacteria phyla in natural ponds**
 
 ```{r phyla_nat, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 physeq_genome_sub <- subset_samples(physeq_genome, type == "natural")
@@ -79,7 +74,7 @@ data.frame(physeq_sample_filt@tax_table) %>%
   unique()
 ```
 
-**Number of Bacteria phyla in protected ponds**
+**Bacteria phyla in protected ponds**
 
 ```{r phyla_prot, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 physeq_genome_sub <- subset_samples(physeq_genome, type == "protected")
@@ -90,7 +85,7 @@ data.frame(physeq_sample_filt@tax_table) %>%
   unique()
 ```
 
-**Number of Bacteria phyla in urban ponds**
+**Bacteria phyla in urban ponds**
 
 ```{r phyla_urb, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 physeq_genome_sub <- subset_samples(physeq_genome, type == "urban")
@@ -112,7 +107,7 @@ genome_metadata %>%
   length()
 ```
 
-**Number of Archaea phyla in natural ponds**
+**Archaea phyla in natural ponds**
 
 ```{r arch_nat, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 physeq_genome_sub <- subset_samples(physeq_genome, type == "natural")
@@ -122,7 +117,7 @@ data.frame(physeq_sample_filt@tax_table) %>%
   dplyr::select(phylum) %>% 
   unique()
 ```
-**Number of Archaea phyla in protected ponds**
+**Archaea phyla in protected ponds**
 
 ```{r arch_prot, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 physeq_genome_sub <- subset_samples(physeq_genome, type == "protected")
@@ -133,7 +128,7 @@ data.frame(physeq_sample_filt@tax_table) %>%
   unique()
 ```
 
-**Number of Archaea phyla in urban ponds**
+**Archaea phyla in urban ponds**
 
 ```{r arch_urb, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 physeq_genome_sub <- subset_samples(physeq_genome, type == "urban")
@@ -441,7 +436,7 @@ genus_summary %>%
 ```
 
 
-## Archaea
+### Archaea
 ```{r archaea, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 physeq_archaea <- subset_taxa(physeq_genome, domain == "d__Archaea")
 cat(nrow(physeq_archaea@tax_table))

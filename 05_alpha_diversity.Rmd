@@ -55,10 +55,9 @@ alpha_div <- richness %>%
   full_join(phylogenetic, by = join_by(sample == sample)) %>%
   full_join(functional, by = join_by(sample == sample))
 
-
 ```
 
-### Alpha diversity by types of pond
+## Types of pond
 ```{r}
 alpha_div %>%
   pivot_longer(-sample, names_to = "alpha", values_to = "value") %>%
@@ -79,7 +78,6 @@ alpha_div %>%
     dplyr::select(alpha,natural,protected,urban) %>% 
     tt()
 ```
-
 
 ```{r alpha_div_boxplot, comment="",echo=FALSE, message=FALSE, warning=FALSE}
 #Richness
@@ -182,7 +180,39 @@ plot4 <- alpha_div %>%
 grid.arrange(arrangeGrob(plot1,plot2,plot3, plot4, ncol = 2))
 ```
 
-### Alpha diversity by season
+### Mixed models
+
+```{r mixed_rich_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+alpha_div_meta <- alpha_div %>%
+  left_join(sample_metadata, by = join_by(sample == sample))
+
+##Negative Binomial
+library(MASS)
+Modelq0GLMMNB <- glm.nb(richness ~ type, data = alpha_div_meta,trace=TRUE)#USE THIS!
+summary(Modelq0GLMMNB)
+emmeans(Modelq0GLMMNB, pairwise ~ type)
+detach("package:MASS", unload = TRUE)
+```
+
+```{r mixed_neut_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+Modelq1_Loca <- lm(formula = neutral ~ type, data = alpha_div_meta) 
+summary(Modelq1_Loca)
+emmeans(Modelq1_Loca, pairwise ~ type)
+```
+
+```{r mixed_phylo_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+Modelq1p_Loca <- lm(formula = phylogenetic ~ type, data = alpha_div_meta) 
+summary(Modelq1p_Loca)
+emmeans(Modelq1p_Loca, pairwise ~ type)
+```
+
+```{r mixed_funct_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+Modelq1F_Loca <- lm(formula = functional ~ type, data = alpha_div_meta) 
+summary(Modelq1F_Loca)
+emmeans(Modelq1F_Loca, pairwise ~ type)
+```
+
+## Season
 ```{r}
 alpha_div %>%
   pivot_longer(-sample, names_to = "alpha", values_to = "value") %>%
@@ -304,39 +334,7 @@ grid.arrange(arrangeGrob(plot21,plot22,plot23, plot24, ncol = 2))
 ```
 
 ## Mixed models
-### Type
 
-```{r mixed_rich_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-alpha_div_meta <- alpha_div %>%
-  left_join(sample_metadata, by = join_by(sample == sample))
-
-##Negative Binomial
-library(MASS)
-Modelq0GLMMNB <- glm.nb(richness ~ type, data = alpha_div_meta,trace=TRUE)#USE THIS!
-summary(Modelq0GLMMNB)
-emmeans(Modelq0GLMMNB, pairwise ~ type)
-detach("package:MASS", unload = TRUE)
-```
-
-```{r mixed_neut_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-Modelq1_Loca <- lm(formula = neutral ~ type, data = alpha_div_meta) 
-summary(Modelq1_Loca)
-emmeans(Modelq1_Loca, pairwise ~ type)
-```
-
-```{r mixed_phylo_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-Modelq1p_Loca <- lm(formula = phylogenetic ~ type, data = alpha_div_meta) 
-summary(Modelq1p_Loca)
-emmeans(Modelq1p_Loca, pairwise ~ type)
-```
-
-```{r mixed_funct_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-Modelq1F_Loca <- lm(formula = functional ~ type, data = alpha_div_meta) 
-summary(Modelq1F_Loca)
-emmeans(Modelq1F_Loca, pairwise ~ type)
-```
-
-### Season
 ```{r mixed_rich_season, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 alpha_div_meta <- alpha_div %>%
   left_join(sample_metadata, by = join_by(sample == sample))%>%
@@ -358,11 +356,8 @@ Model_funct <- lme(fixed = functional ~ season, data = alpha_div_meta,
 summary(Model_funct)
 ```
 
-
-
-
-## Archaea
-```{r}
+## Archaea diversity
+```{r archaea_div, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 richness <- data.frame(physeq_archaea@otu_table) %>%
 #  column_to_rownames(var = "genome") %>%
   dplyr::select(where(~ !all(. == 0))) %>%
@@ -418,9 +413,12 @@ alpha_div <- richness %>%
   full_join(neutral, by = join_by(sample == sample)) %>%
   full_join(phylogenetic, by = join_by(sample == sample)) %>%
   full_join(functional, by = join_by(sample == sample))
+
+alpha_div
 ```
 
-```{r}
+### Richness
+```{r archaea_div_rich, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 alpha_div %>%
   pivot_longer(-sample, names_to = "metric", values_to = "value") %>%
   left_join(., sample_metadata, by = join_by(sample == sample)) %>%
@@ -442,7 +440,9 @@ alpha_div %>%
       )
 ```
 
-```{r}
+
+### Neutral
+```{r archaea_div_neutral, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 alpha_div %>%
   pivot_longer(-sample, names_to = "metric", values_to = "value") %>%
   left_join(., sample_metadata, by = join_by(sample == sample)) %>%
@@ -464,7 +464,9 @@ alpha_div %>%
       )
 ```
 
-```{r}
+
+### Phylogenetic
+```{r archaea_div_phylo, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 alpha_div %>%
   pivot_longer(-sample, names_to = "metric", values_to = "value") %>%
   left_join(., sample_metadata, by = join_by(sample == sample)) %>%
