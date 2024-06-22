@@ -1,7 +1,20 @@
 # Beta diversity
 
-```{r load_data_beta}
+```{r load_data_beta, comment="", message=FALSE, warning=FALSE, eval=FALSE}
 load("data/data.Rdata")
+load("data/beta.Rdata")
+```
+
+
+```{r load_data_mag_filtdamr, comment="", message=FALSE, warning=FALSE}
+load("data/data_filtdamr_80.Rdata")
+load("data/beta_filtdamr_80.Rdata")
+sample_metadata <- sample_metadata_filtdamr
+genome_counts_filt <- genome_counts_filtdamr
+genome_metadata <- genome_metadata_filtdamr
+genome_tree <- genome_tree_filtdamr
+genome_gifts <- genome_gifts_filtdamr
+phylum_colors <- phylum_colors_filtdamr
 ```
 
 ```{r beta_div, comment="", message=FALSE, warning=FALSE, eval=FALSE}
@@ -24,6 +37,10 @@ beta_q1p <- genome_counts_filt %>%
   hillpair(., q = 1, tree = genome_tree)
 
 genome_counts_filt_func <- genome_counts_filt[genome_counts_filt$genome %in% rownames(genome_gifts),]
+genome_counts_filt_func <- genome_counts_filt[genome_counts_filt$genome %in% rownames(genome_gifts),]
+dist <- genome_gifts %>%
+  to.elements(., GIFT_db) %>%
+  traits2dist(., method = "gower")
 
 beta_q1f <- genome_counts_filt_func %>%
   column_to_rownames(., "genome") %>%
@@ -39,104 +56,146 @@ save(beta_q0n,
      beta_q1n, 
      beta_q1p, 
      beta_q1f, 
-     file = "data/beta.Rdata")
-```
-
-```{r load_beta, comment="", message=FALSE,echo=FALSE,warning=FALSE}
-load("data/beta.Rdata")
+     file = "data/beta_filtdamr_80.Rdata")
 ```
 
 ## Permanova analysis
 
-```{r permanova_type_season_q0, comment="", message=FALSE, warning=FALSE}
+### Strata
+
+**Richness**
+```{r permanova_type_seasonS_q0, comment="", message=FALSE, warning=FALSE}
 sample_metadata_row<- column_to_rownames(sample_metadata, "sample") 
 sample_metadata_row <- sample_metadata_row[labels(beta_q0n$S), ]
 
-adonis2(beta_q0n$S ~ type*season, data = sample_metadata_row[labels(beta_q0n$S), ], 
-        permutations = 999, strata =sample_metadata_row$region) %>%
-  as.data.frame()
-
-pairwise.adonis(beta_q0n$S , sample_metadata_row$type, perm = 999)
-```
-
-```{r permanova_type_season_q1, comment="", message=FALSE, warning=FALSE}
-
-adonis2(beta_q1n$S ~ type*season, data = sample_metadata_row[labels(beta_q1n$S), ], 
-        permutations = 999, strata =sample_metadata_row$region) %>%
-  as.data.frame()
-
-pairwise.adonis(beta_q1n$S , sample_metadata_row$type, perm = 999)
-```
-
-```{r permanova_type_season_qP, comment="", message=FALSE, warning=FALSE}
-adonis2(beta_q1p$S ~ type*season, data = sample_metadata_row[labels(beta_q1p$S), ], 
-        permutations = 999, strata =sample_metadata_row$region) %>%
-  as.data.frame()
-
-pairwise.adonis(beta_q1p$S , sample_metadata_row$type, perm = 999)
-```
-
-
-```{r permanova_type_season_qF, comment="", message=FALSE, warning=FALSE}
-
-adonis2(beta_q1f$S ~ type*season, data = sample_metadata_row[labels(beta_q1f$S), ], 
-        permutations = 999, strata =sample_metadata_row$region) %>%
-  as.data.frame()
-
-pairwise.adonis(beta_q1f$S , sample_metadata_row$type, perm = 999)
-```
-
-```{r permanova_type_not, comment="", message=FALSE, warning=FALSE, eval=FALSE}
-#Richness
 betadisper(beta_q0n$S, sample_metadata$type) %>% permutest(., pairwise = TRUE) 
-adonis2(beta_q0n$S ~ type, 
+
+adonis2(beta_q0n$S ~ type*season, 
         data = sample_metadata %>% arrange(match(sample,labels(beta_q0n$S))), 
         permutations = 999, 
-        strata = sample_metadata %>% arrange(match(sample,labels(beta_q0n$S))) %>% pull(type)) %>%
+        strata = sample_metadata %>% arrange(match(sample,labels(beta_q0n$S))) %>% pull(region)) %>%
         broom::tidy() %>%
         tt()
+pairwise.adonis2(beta_q0n$S ~ type*season, data=sample_metadata_row, perm = 999, 
+        strata = "region")
+```
 
-#Neutral diversity
+**Neutral**
+```{r permanova_type_seasonS_q1, comment="", message=FALSE, warning=FALSE}
 betadisper(beta_q1n$S, sample_metadata$type) %>% permutest(., pairwise = TRUE) 
-adonis2(beta_q1n$S ~ type, 
+
+adonis2(beta_q1n$S ~ type*season, 
         data = sample_metadata %>% arrange(match(sample,labels(beta_q1n$S))), 
         permutations = 999, 
-        strata = sample_metadata %>% arrange(match(sample,labels(beta_q1n$S))) %>% pull(type)) %>%
+        strata = sample_metadata %>% arrange(match(sample,labels(beta_q1n$S))) %>% pull(region)) %>%
         broom::tidy() %>%
         tt()
+pairwise.adonis2(beta_q1n$S ~ type*season, data=sample_metadata_row, perm = 999, 
+        strata = "region")
 
-#Phylogenetic diversity
+```
+
+**Phylogenetic**
+```{r permanova_type_seasonS_qP, comment="", message=FALSE, warning=FALSE}
 betadisper(beta_q1p$S, sample_metadata$type) %>% permutest(., pairwise = TRUE) 
-adonis2(beta_q1p$S ~ type, 
+adonis2(beta_q1p$S ~ type*season, 
         data = sample_metadata %>% arrange(match(sample,labels(beta_q1p$S))), 
         permutations = 999, 
-        strata = sample_metadata %>% arrange(match(sample,labels(beta_q1p$S))) %>% pull(type)) %>%
+        strata = sample_metadata %>% arrange(match(sample,labels(beta_q1p$S))) %>% pull(region)) %>%
         broom::tidy() %>%
         tt()
 
-#Functional diversity
-betadisper(beta_q1f$S, sample_metadata$type) %>% permutest(., pairwise = TRUE)
+pairwise.adonis2(beta_q1p$S ~ type*season, data=sample_metadata_row, perm = 999, 
+        strata = "region")
+```
+
+**Functional**
+```{r permanova_type_seasonS_qF, comment="", message=FALSE, warning=FALSE}
+betadisper(beta_q1f$S, sample_metadata$type) %>% permutest(., pairwise = TRUE) 
 adonis2(beta_q1f$S ~ type,
         data = sample_metadata %>% arrange(match(sample,labels(beta_q1f$S))),
         permutations = 999,
         strata = sample_metadata %>% arrange(match(sample,labels(beta_q1f$S))) %>% pull(type)) %>%
         broom::tidy() %>%
         tt()
+pairwise.adonis2(beta_q1f$S ~ type*season, data=sample_metadata_row, perm = 999, 
+        strata = "region")
+
+```
+
+### Without strata
+
+**Richness**
+```{r permanova_type_season_q0, comment="", message=FALSE, warning=FALSE}
+sample_metadata_row<- column_to_rownames(sample_metadata, "sample") 
+sample_metadata_row <- sample_metadata_row[labels(beta_q0n$S), ]
+
+betadisper(beta_q0n$S, sample_metadata$type) %>% permutest(., pairwise = TRUE) 
+betadisper(beta_q0n$S, sample_metadata$season) %>% permutest(., pairwise = TRUE) 
+
+adonis2(beta_q0n$S ~ type*season, 
+        data = sample_metadata %>% arrange(match(sample,labels(beta_q0n$S))), 
+        permutations = 999) %>%
+        broom::tidy() %>%
+        tt()
+pairwise.adonis2(beta_q0n$S ~ type*season, data=sample_metadata_row, perm = 999)
+```
+
+**Neutral**
+```{r permanova_type_season_q1, comment="", message=FALSE, warning=FALSE}
+betadisper(beta_q1n$S, sample_metadata$type) %>% permutest(., pairwise = TRUE) 
+betadisper(beta_q1n$S, sample_metadata$season) %>% permutest(., pairwise = TRUE) 
+
+adonis2(beta_q1n$S ~ type*season, 
+        data = sample_metadata %>% arrange(match(sample,labels(beta_q1n$S))), 
+        permutations = 999) %>%
+        broom::tidy() %>%
+        tt()
+pairwise.adonis2(beta_q1n$S ~ type*season, data=sample_metadata_row, perm = 999)
+
+```
+
+**Phylogenetic**
+```{r permanova_type_season_qP, comment="", message=FALSE, warning=FALSE}
+betadisper(beta_q1p$S, sample_metadata$type) %>% permutest(., pairwise = TRUE) 
+betadisper(beta_q1p$S, sample_metadata$season) %>% permutest(., pairwise = TRUE) 
+
+adonis2(beta_q1p$S ~ type*season, 
+        data = sample_metadata %>% arrange(match(sample,labels(beta_q1p$S))), 
+        permutations = 999) %>%
+        broom::tidy() %>%
+        tt()
+
+pairwise.adonis2(beta_q1p$S ~ type*season, data=sample_metadata_row, perm = 999)
+```
+
+**Functional**
+```{r permanova_type_season_qF, comment="", message=FALSE, warning=FALSE}
+betadisper(beta_q1f$S, sample_metadata$type) %>% permutest(., pairwise = TRUE) 
+betadisper(beta_q1f$S, sample_metadata$season) %>% permutest(., pairwise = TRUE) 
+
+adonis2(beta_q1f$S ~ type,
+        data = sample_metadata %>% arrange(match(sample,labels(beta_q1f$S))),
+        permutations = 999) %>%
+        broom::tidy() %>%
+        tt()
+pairwise.adonis2(beta_q1f$S ~ type*season, data=sample_metadata_row, perm = 999)
+
 ```
 
 ## Beta diversity plots
 
 ### Richness
 
-```{r beta_div_nmds_neutral_plot, comment="", message=FALSE, warning=FALSE, fig.height=7, fig.width=10, fig.fullwidth=TRUE, eval=FALSE}
+```{r beta_div_nmds_neutral_plot_median, comment="", message=FALSE, warning=FALSE, fig.height=7, fig.width=10, fig.fullwidth=TRUE, eval=FALSE}
 beta_q0n$S %>%
   vegan::metaMDS(., trymax = 500, k = 2, trace=0) %>%
   vegan::scores() %>%
   as_tibble(., rownames = "sample") %>%
   dplyr::left_join(sample_metadata, by = join_by(sample == sample)) %>%
   group_by(season) %>%
-  mutate(x_cen = mean(NMDS1, na.rm = TRUE)) %>%
-  mutate(y_cen = mean(NMDS2, na.rm = TRUE)) %>%
+  mutate(x_cen = median(NMDS1, na.rm = TRUE)) %>%
+  mutate(y_cen = median(NMDS2, na.rm = TRUE)) %>%
   ungroup() %>%
   ggplot(aes(x = NMDS1, y = NMDS2, color = season, fill = season, shape = as.factor(type))) +
     geom_point(size = 4) +
@@ -161,55 +220,39 @@ beta_q0n$S %>%
 
 ### Neutral
 
-```{r betan, comment="", echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
-beta_metric <- beta_q1n$S
-
-beta_q1n_nmds <- beta_metric %>%
-  vegan::metaMDS(., trymax = 500, k = 2, verbosity = FALSE) %>%
+```{r beta_div_neutral, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+beta_q1n$S %>%
+  vegan::metaMDS(., trymax = 500, k = 2, trace=0) %>%
   vegan::scores() %>%
   as_tibble(., rownames = "sample") %>%
-  dplyr::left_join(sample_metadata, by = join_by(sample == sample))
-
-#group_n <- length(unique(beta_q1n_nmds$season))
-#beta_colors <- c("#E0A608", "#08769D", "#823838", "#2a2d26")
-```
-
-```{r beta_div_neutral, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-#png("beta_q1_allsamples.png",width=14, height=9)
-q1n_nmds <- beta_q1n_nmds %>%
+#  filter(!sample %in% c("EHI01629", "EHI01630", "EHI01614", "EHI01662", "EHI01446", "EHI01624")) %>% 
+  dplyr::left_join(sample_metadata, by = join_by(sample == sample)) %>%
   group_by(season) %>%
   mutate(x_cen = mean(NMDS1, na.rm = TRUE)) %>%
   mutate(y_cen = mean(NMDS2, na.rm = TRUE)) %>%
-  ungroup()
-#tiff("figures/betaq1_3samples1.tiff", units="in", width=9, height=5, res=300)
-ggplot(q1n_nmds, aes(x = NMDS1, y = NMDS2, color = season, shape=type)) +
-    scale_color_manual(values = season_colors) +
-  geom_point(size = 2) +
-  #   stat_ellipse(aes(color = beta_q1n_nmds$Groups))+
-  geom_segment(aes(x = x_cen, y = y_cen, xend = NMDS1, yend = NMDS2), alpha = 0.5, show.legend = FALSE) +
-  theme_classic() +
-  theme(
-    axis.text.x = element_text(size = 12),
-    axis.text.y = element_text(size = 12),
-    axis.title = element_text(size = 14),
-    #axis.text = element_text(face = "bold", size = 16),
-    panel.background = element_blank(),
-    axis.line = element_line(size = 0.5, linetype = "solid", colour = "black"),
-    legend.text = element_text(size = 14),
-    legend.title = element_text(size = 16),
-    legend.position = "right", legend.box = "vertical"
-  )+
-  guides(color=guide_legend(title="Sample type"))
-#+ geom_text(aes(label = Sample), size=8)
-# dev.off()
- 
-#dev.copy(jpeg,filename="beta_q1_allsamples1.jpg", width = 1000, height = 600)
-#dev.off ()
+  ungroup() %>%
+  ggplot(aes(x = NMDS1, y = NMDS2, color = season, shape = as.factor(type))) +
+    geom_point(size = 4) +
+    #   stat_ellipse(aes(color = beta_q1n_nmds$Groups))+
+    geom_segment(aes(x = x_cen, y = y_cen, xend = NMDS1, yend = NMDS2), alpha = 0.9, show.legend = FALSE) +
+    scale_color_manual(values=season_colors)+
+    theme_classic() +
+    theme(
+      axis.text.x = element_text(size = 12),
+      axis.text.y = element_text(size = 12),
+      axis.title = element_text(size = 20, face = "bold"),
+      axis.text = element_text(face = "bold", size = 18),
+      panel.background = element_blank(),
+      axis.line = element_line(size = 0.5, linetype = "solid", colour = "black"),
+      legend.text = element_text(size = 16),
+      legend.title = element_text(size = 18),
+      legend.position = "right", legend.box = "vertical"
+    ) +
+    labs(shape="Type of pond",color='Season')
 ```
 
 
-
-```{r beta_div_nmds_phylo_plot, comment="", message=FALSE, warning=FALSE, fig.height=7, fig.width=10, fig.fullwidth=TRUE}
+```{r beta_div_nmds_neutral1_plot, comment="", message=FALSE, warning=FALSE, fig.height=7, fig.width=10, fig.fullwidth=TRUE}
 beta_q1n$S %>%
   vegan::metaMDS(., trymax = 500, k = 2, trace=0) %>%
   vegan::scores() %>%
@@ -217,8 +260,8 @@ beta_q1n$S %>%
 #  filter(!sample %in% c("EHI01629", "EHI01630", "EHI01614", "EHI01662", "EHI01446", "EHI01624")) %>% 
   dplyr::left_join(sample_metadata, by = join_by(sample == sample)) %>%
   group_by(type) %>%
-  mutate(x_cen = mean(NMDS1, na.rm = TRUE)) %>%
-  mutate(y_cen = mean(NMDS2, na.rm = TRUE)) %>%
+  mutate(x_cen = median(NMDS1, na.rm = TRUE)) %>%
+  mutate(y_cen = median(NMDS2, na.rm = TRUE)) %>%
   ungroup() %>%
   ggplot(aes(x = NMDS1, y = NMDS2, color = type, shape = as.factor(season))) +
     geom_point(size = 4) +
@@ -239,7 +282,6 @@ beta_q1n$S %>%
     ) +
     labs(shape="Season",color='Type of pond')
 ```
-
 #### In spring
 ```{r beta_div_nmds_neutralq1_plot_spring, comment="", message=FALSE, warning=FALSE, fig.height=7, fig.width=10, fig.fullwidth=TRUE}
 beta_q1n$S %>%
@@ -252,8 +294,8 @@ beta_q1n$S %>%
  #   filter(season=="autumn") %>%
       filter(season=="spring") %>%
   group_by(type) %>%
-  mutate(x_cen = mean(NMDS1, na.rm = TRUE)) %>%
-  mutate(y_cen = mean(NMDS2, na.rm = TRUE)) %>%
+  mutate(x_cen = median(NMDS1, na.rm = TRUE)) %>%
+  mutate(y_cen = median(NMDS2, na.rm = TRUE)) %>%
   ungroup() %>%
   ggplot(aes(x = NMDS1, y = NMDS2, color = type)) +#, shape = as.factor(type)
     geom_point(size = 4) +
@@ -271,6 +313,7 @@ beta_q1n$S %>%
       legend.title = element_text(size = 18),
       legend.position = "right", legend.box = "vertical"
     ) + labs(color='Type of pond') 
+
 ```
 
 #### In autumn
@@ -285,8 +328,8 @@ beta_q1n$S %>%
    filter(season=="autumn") %>%
   #     filter(season=="spring") %>%
   group_by(type) %>%
-  mutate(x_cen = mean(NMDS1, na.rm = TRUE)) %>%
-  mutate(y_cen = mean(NMDS2, na.rm = TRUE)) %>%
+  mutate(x_cen = median(NMDS1, na.rm = TRUE)) %>%
+  mutate(y_cen = median(NMDS2, na.rm = TRUE)) %>%
   ungroup() %>%
   ggplot(aes(x = NMDS1, y = NMDS2, color = type)) +
   geom_point(size = 4) +
@@ -318,12 +361,11 @@ beta_q1p$S %>%
 #  filter(!sample %in% c("EHI01629", "EHI01630", "EHI01614", "EHI01662", "EHI01446", "EHI01624")) %>% 
   dplyr::left_join(sample_metadata, by = join_by(sample == sample)) %>%
   group_by(season) %>%
-  mutate(x_cen = mean(NMDS1, na.rm = TRUE)) %>%
-  mutate(y_cen = mean(NMDS2, na.rm = TRUE)) %>%
+  mutate(x_cen = median(NMDS1, na.rm = TRUE)) %>%
+  mutate(y_cen = median(NMDS2, na.rm = TRUE)) %>%
   ungroup() %>%
   ggplot(aes(x = NMDS1, y = NMDS2, color = season, shape = as.factor(type))) +
     geom_point(size = 4) +
-    #   stat_ellipse(aes(color = beta_q1n_nmds$Groups))+
     geom_segment(aes(x = x_cen, y = y_cen, xend = NMDS1, yend = NMDS2), alpha = 0.9, show.legend = FALSE) +
   scale_color_manual(values=season_colors)+
     theme_classic() +
@@ -339,8 +381,6 @@ beta_q1p$S %>%
       legend.position = "right", legend.box = "vertical"
     ) +
     labs(shape="Type of pond",color='Season')
-
-
 ```
 
 ```{r beta_div_nmds_phylo2_plot, comment="", message=FALSE, warning=FALSE, fig.height=7, fig.width=10, fig.fullwidth=TRUE, eval=FALSE}
@@ -351,8 +391,8 @@ beta_q1p$S %>%
 #  filter(!sample %in% c("EHI01629", "EHI01630", "EHI01614", "EHI01662", "EHI01446", "EHI01624")) %>% 
   dplyr::left_join(sample_metadata, by = join_by(sample == sample)) %>%
   group_by(region) %>%
-  mutate(x_cen = mean(NMDS1, na.rm = TRUE)) %>%
-  mutate(y_cen = mean(NMDS2, na.rm = TRUE)) %>%
+  mutate(x_cen = median(NMDS1, na.rm = TRUE)) %>%
+  mutate(y_cen = median(NMDS2, na.rm = TRUE)) %>%
   ungroup() %>%
   ggplot(aes(x = NMDS1, y = NMDS2, color = region, shape = as.factor(season))) +
     geom_point(size = 4) +
@@ -371,7 +411,8 @@ beta_q1p$S %>%
       legend.title = element_text(size = 18),
       legend.position = "right", legend.box = "vertical"
     ) +
-    labs(shape="Season",color='Type of pond')
+    labs(shape="Season",color='Type of pond')+
+  geom_text(aes(label = sample), size=4)
 ```
 
 ### Functional
@@ -383,8 +424,8 @@ beta_q1f$S %>%
 #  filter(!sample %in% c("EHI01629", "EHI01630", "EHI01614", "EHI01662", "EHI01446", "EHI01624")) %>% 
   dplyr::left_join(sample_metadata, by = join_by(sample == sample)) %>%
   group_by(type) %>%
-  mutate(x_cen = mean(NMDS1, na.rm = TRUE)) %>%
-  mutate(y_cen = mean(NMDS2, na.rm = TRUE)) %>%
+  mutate(x_cen = median(NMDS1, na.rm = TRUE)) %>%
+  mutate(y_cen = median(NMDS2, na.rm = TRUE)) %>%
   ungroup() %>%
   ggplot(aes(x = NMDS1, y = NMDS2, color = type, shape = season)) +
     geom_point(size = 4) +

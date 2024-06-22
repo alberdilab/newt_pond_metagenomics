@@ -27,7 +27,7 @@ domain_summary %>%
 ```{r taxonomy_barplot, fig.height=6, fig.width=10, fig.fullwidth=TRUE}
 #ggsave("figures/mtcars.png", width = 10, height = 6)
 genome_counts_filt %>%
-  mutate_at(vars(-genome),~./sum(.)) %>% #apply TSS nornalisation
+  mutate_at(vars(-genome),~./sum(.)) %>% #apply TSS normalisation
   pivot_longer(-genome, names_to = "sample", values_to = "count") %>% #reduce to minimum number of columns
   left_join(., genome_metadata, by = join_by(genome == genome)) %>% #append genome metadata
   left_join(., sample_metadata, by = join_by(sample == sample)) %>% #append sample metadata
@@ -117,6 +117,7 @@ data.frame(physeq_sample_filt@tax_table) %>%
   dplyr::select(phylum) %>% 
   unique()
 ```
+
 **Archaea phyla in protected ponds**
 
 ```{r arch_prot, comment="", echo=FALSE, message=FALSE, warning=FALSE}
@@ -139,7 +140,7 @@ data.frame(physeq_sample_filt@tax_table) %>%
   unique()
 ```
 
-### Phylum relative abundances
+## Phylum relative abundances
 ```{r taxonomy_phylum, warning=FALSE, comments="", message=FALSE}
 phylum_summary <- genome_counts_filt %>%
   mutate_at(vars(-genome),~./sum(.)) %>% #apply TSS nornalisation
@@ -148,6 +149,16 @@ phylum_summary <- genome_counts_filt %>%
   left_join(genome_metadata, by = join_by(genome == genome)) %>%
   group_by(sample,phylum,type, season) %>%
   summarise(relabun=sum(count))
+```
+```{r taxonomy_phylum_summary_total, warning=FALSE, comments="", message=FALSE}
+phylum_summary %>%
+    group_by(phylum) %>%
+    summarise(total_mean=mean(relabun*100, na.rm=T),
+              total_sd=sd(relabun*100, na.rm=T))  %>%
+    mutate(total=str_c(round(total_mean,2),"±",round(total_sd,2))) %>% 
+    arrange(-total_mean) %>% 
+    dplyr::select(phylum,total) %>% 
+    tt()
 ```
 ```{r taxonomy_boxplot_phylum, warning=FALSE, comments="", message=FALSE, fig.height=8, fig.width=10, fig.fullwidth=TRUE}
 phylum_arrange <- phylum_summary %>%
@@ -168,7 +179,7 @@ phylum_summary %>%
         labs(y="Phylum",x="Relative abundance")
 ```
 
-#### Per pond
+### Per pond
 ```{r taxonomy_phylum_summary_type, warning=FALSE, comments="", message=FALSE}
 phylum_summary %>%
     group_by(phylum) %>%
@@ -203,7 +214,7 @@ phylum_summary %>%
 ```
 
 
-#### Per pond
+### Per season
 ```{r taxonomy_phylum_summary_season, warning=FALSE, comments="", message=FALSE}
 phylum_summary %>%
     group_by(phylum) %>% 
@@ -234,7 +245,7 @@ phylum_summary %>%
   labs(y="Family", x="Relative abundance", color="Phylum")
 ```
 
-### Family relative abundances
+## Family relative abundances
 ```{r taxonomy_family_summary, warning=FALSE, comments="", message=FALSE}
 family_summary <- genome_counts_filt %>%
   mutate_at(vars(-genome),~./sum(.)) %>% #apply TSS nornalisation
@@ -257,7 +268,7 @@ family_summary %>%
         labs(y="Family", x="Relative abundance", color="Phylum")
 ```
 
-#### Per pond
+### Per pond
 ```{r taxonomy_family_summary_type, warning=FALSE, comments="", message=FALSE}
 family_summary %>%
     group_by(family) %>%
@@ -316,7 +327,7 @@ family_summary %>%
 
 ```
 
-#### Per season
+### Per season
 ```{r taxonomy_family_summary_season, warning=FALSE, comments="", message=FALSE}
 family_summary %>%
     group_by(family) %>% 
@@ -349,7 +360,7 @@ family_summary %>%
         labs(y="Family", x="Relative abundance", color="Phylum")
 ```
 
-### Genus relative abundances
+## Genus relative abundances
 ```{r taxonomy_genus, warning=FALSE, comments="", message=FALSE}
 genus_summary <- genome_counts_filt %>%
   mutate_at(vars(-genome),~./sum(.)) %>% #apply TSS nornalisation
@@ -362,7 +373,7 @@ genus_summary <- genome_counts_filt %>%
   mutate(genus= sub("^g__", "", genus))
 ```
 
-#### Per pond
+### Per pond
 ```{r taxonomy_genus_summary_type, warning=FALSE, comments="", message=FALSE}
 genus_summary %>%
     group_by(genus) %>%
@@ -400,7 +411,7 @@ genus_summary %>%
 
 ```
 
-#### Per season
+### Per season
 ```{r taxonomy_genus_summary_season, warning=FALSE, comments="", message=FALSE}
 genus_summary %>%
     group_by(genus) %>%
@@ -436,7 +447,7 @@ genus_summary %>%
 ```
 
 
-### Archaea
+## Archaea
 ```{r archaea, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 physeq_archaea <- subset_taxa(physeq_genome, domain == "d__Archaea")
 cat(nrow(physeq_archaea@tax_table))
@@ -475,4 +486,134 @@ theme(axis.text.x = element_blank(),
     guides(fill = guide_legend(ncol = 1)) 
 ```
 
+### Diversity
+```{r archaea_div, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+richness <- data.frame(physeq_archaea@otu_table) %>%
+#  column_to_rownames(var = "genome") %>%
+  dplyr::select(where(~ !all(. == 0))) %>%
+  hilldiv(., q = 0) %>%
+  t() %>%
+  as.data.frame() %>%
+  dplyr::rename(richness = 1) %>%
+  rownames_to_column(var = "sample")
+neutral <- data.frame(physeq_archaea@otu_table) %>%
+#  column_to_rownames(var = "genome") %>%
+  dplyr::select(where(~ !all(. == 0))) %>%
+  hilldiv(., q = 1) %>%
+  t() %>%
+  as.data.frame() %>%
+  dplyr::rename(neutral = 1) %>%
+  rownames_to_column(var = "sample")
 
+metadata_archaea <- data.frame(tax_table(physeq_archaea))%>% rownames_to_column(., "genome")
+archaea_tree <- keep.tip(genome_tree, tip=metadata_archaea$genome) 
+phylogenetic <- data.frame(physeq_archaea@otu_table) %>%
+#  column_to_rownames(var = "genome") %>%
+  dplyr::select(where(~ !all(. == 0))) %>%
+  hilldiv(., q = 1, tree = archaea_tree) %>%
+  t() %>%
+  as.data.frame() %>%
+  dplyr::rename(phylogenetic = 1) %>%
+  rownames_to_column(var = "sample")
+
+# Aggregate basal GIFT into elements
+counts_archaea <- data.frame(physeq_archaea@otu_table) %>% 
+  as.data.frame() %>% 
+  rownames_to_column(., "genome")
+counts_archaea_func <- counts_archaea[counts_archaea$genome %in% rownames(genome_gifts),]
+genome_gifts_archaea <- genome_gifts[counts_archaea$genome,]
+
+dist <- genome_gifts_archaea %>%
+  to.elements(., GIFT_db) %>%
+  traits2dist(., method = "gower")
+
+functional <- counts_archaea %>%
+  filter(genome %in% rownames(dist)) %>%
+  column_to_rownames(var = "genome") %>%
+#  dplyr::select(where(~ !all(. == 0))) %>%
+  hilldiv(., q = 1, dist = dist) %>%
+  t() %>%
+  as.data.frame() %>%
+  dplyr::rename(functional = 1) %>%
+  rownames_to_column(var = "sample") %>%
+  mutate(functional = if_else(is.nan(functional), 1, functional))
+
+# Merge all metrics
+alpha_div <- richness %>%
+  full_join(neutral, by = join_by(sample == sample)) %>%
+  full_join(phylogenetic, by = join_by(sample == sample)) %>%
+  full_join(functional, by = join_by(sample == sample))
+
+alpha_div
+```
+
+#### Richness
+```{r archaea_div_rich, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+alpha_div %>%
+  pivot_longer(-sample, names_to = "metric", values_to = "value") %>%
+  left_join(., sample_metadata, by = join_by(sample == sample)) %>%
+  filter(!region %in% c("Eskoriatza","Villabona")) %>% 
+  filter(metric=="richness") %>%
+  ggplot(aes(y = value, x = region, group=region, color=region, fill=region)) +
+  geom_jitter()+
+  geom_boxplot(alpha=0.5, outlier.shape = NA)  +
+  scale_color_manual(values=location_colors)+
+  scale_fill_manual(values=location_colors) +
+  coord_cartesian(xlim = c(1, NA)) +
+  theme_classic() +
+  theme(
+    strip.background = element_blank(),
+    panel.grid.minor.x = element_line(size = .1, color = "grey"),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+      )
+```
+
+
+#### Neutral
+```{r archaea_div_neutral, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+alpha_div %>%
+  pivot_longer(-sample, names_to = "metric", values_to = "value") %>%
+  left_join(., sample_metadata, by = join_by(sample == sample)) %>%
+  filter(!region %in% c("Eskoriatza","Villabona")) %>% 
+  filter(metric=="neutral") %>%
+  ggplot(aes(y = value, x = region, group=region, color=region, fill=region)) +
+  geom_jitter()+
+  geom_boxplot(alpha=0.5, outlier.shape = NA)  +
+  scale_color_manual(values=location_colors)+
+  scale_fill_manual(values=location_colors) +
+  coord_cartesian(xlim = c(1, NA)) +
+  theme_classic() +
+  theme(
+    strip.background = element_blank(),
+    panel.grid.minor.x = element_line(size = .1, color = "grey"),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+      )
+```
+
+
+#### Phylogenetic
+```{r archaea_div_phylo, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+alpha_div %>%
+  pivot_longer(-sample, names_to = "metric", values_to = "value") %>%
+  left_join(., sample_metadata, by = join_by(sample == sample)) %>%
+  filter(!region %in% c("Eskoriatza","Villabona")) %>% 
+  filter(metric=="phylogenetic") %>%
+  ggplot(aes(y = value, x = region, group=region, color=region, fill=region)) +
+  geom_jitter()+
+  geom_boxplot(alpha=0.5, outlier.shape = NA)  +
+  scale_color_manual(values=location_colors)+
+  scale_fill_manual(values=location_colors) +
+  coord_cartesian(xlim = c(1, NA)) +
+  theme_classic() +
+  theme(
+    strip.background = element_blank(),
+    panel.grid.minor.x = element_line(size = .1, color = "grey"),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+      )
+```

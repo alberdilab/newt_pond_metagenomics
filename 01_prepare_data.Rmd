@@ -92,20 +92,22 @@ genome_counts_filt <- read_counts_filt %>%
   mutate(across(where(is.numeric), ~ . / (genome_metadata$length / readlength) ))
 ```
 
-****Sample without genome counts****
+**Sample without genome counts**
 ```{r exclut_sample, warning=FALSE, comments="", message=FALSE, eval=FALSE}
 genome_counts_filt %>%
   select_if(~ !is.numeric(.) || sum(.) == 0)%>%
   select(-genome) %>% 
   colnames()
+#"EHI02590"
 ```
 
-****Mag without reads****
+**Mag without reads**
 ```{r exclut_data, warning=FALSE, comments="", message=FALSE, eval=FALSE}
 genome_counts_filt %>%
   filter(rowSums(across(where(is.numeric)))==0) %>% 
   column_to_rownames(., "genome") %>% 
   rownames()
+#"EHA02398_bin.22"
 ```
 
 ### Filter the data

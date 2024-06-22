@@ -110,9 +110,9 @@ nonphylum <- genome_metadata %>%
     nrow()
 cat(nonphylum)
 
-genome_metadata %>%
-  filter(phylum == "p__") %>%
-  summarise_at(c("completeness", "contamination"), mean, na.rm = TRUE)
+# genome_metadata %>%
+#   filter(phylum == "p__") %>%
+#   summarise_at(c("completeness", "contamination"), mean, na.rm = TRUE)
 ```
 
 **Number of MAGs without class-level annotation**
@@ -157,12 +157,12 @@ nongenus <- genome_metadata %>%
     filter(genus == "g__") %>%
     nrow()
 cat(nongenus)
-# genome_metadata %>%
-#   filter(genus == "g__") %>%
-#   summarise_at(c("completeness", "contamination"), mean, na.rm = TRUE)
+genome_metadata %>%
+  filter(genus == "g__") %>%
+  summarise_at(c("completeness", "contamination"), mean, na.rm = TRUE)
 ```
 
-**Percentage of MAGs without species-level annotation**
+**Percentage of MAGs without genera-level annotation**
 ```{r sp_percet_gen, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 perct <- nongenus*100/nmags
 cat(perct)

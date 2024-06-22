@@ -1,7 +1,16 @@
 # Alpha diversity
 
-```{r load_data_alpha}
+```{r load_data_alpha, comment="", message=FALSE, warning=FALSE, eval=FALSE}
 load("data/data.Rdata")
+```
+```{r load_data_mag_filtdamr1, comment="", message=FALSE, warning=FALSE}
+load("data/data_filtdamr_80.Rdata")
+sample_metadata <- sample_metadata_filtdamr
+genome_counts_filt <- genome_counts_filtdamr
+genome_metadata <- genome_metadata_filtdamr
+genome_tree <- genome_tree_filtdamr
+genome_gifts <- genome_gifts_filtdamr
+phylum_colors <- phylum_colors_filtdamr
 ```
 
 ```{r alpha_div, comment="", message=FALSE, warning=FALSE}
@@ -58,7 +67,7 @@ alpha_div <- richness %>%
 ```
 
 ## Types of pond
-```{r}
+```{r alpha_div_types_summary, comment="",echo=FALSE, message=FALSE, warning=FALSE}
 alpha_div %>%
   pivot_longer(-sample, names_to = "alpha", values_to = "value") %>%
   left_join(sample_metadata, by = join_by(sample == sample)) %>%
@@ -333,7 +342,7 @@ plot24 <- alpha_div %>%
 grid.arrange(arrangeGrob(plot21,plot22,plot23, plot24, ncol = 2))
 ```
 
-## Mixed models
+### Mixed models
 
 ```{r mixed_rich_season, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 alpha_div_meta <- alpha_div %>%
@@ -356,134 +365,3 @@ Model_funct <- lme(fixed = functional ~ season, data = alpha_div_meta,
 summary(Model_funct)
 ```
 
-## Archaea diversity
-```{r archaea_div, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-richness <- data.frame(physeq_archaea@otu_table) %>%
-#  column_to_rownames(var = "genome") %>%
-  dplyr::select(where(~ !all(. == 0))) %>%
-  hilldiv(., q = 0) %>%
-  t() %>%
-  as.data.frame() %>%
-  dplyr::rename(richness = 1) %>%
-  rownames_to_column(var = "sample")
-neutral <- data.frame(physeq_archaea@otu_table) %>%
-#  column_to_rownames(var = "genome") %>%
-  dplyr::select(where(~ !all(. == 0))) %>%
-  hilldiv(., q = 1) %>%
-  t() %>%
-  as.data.frame() %>%
-  dplyr::rename(neutral = 1) %>%
-  rownames_to_column(var = "sample")
-
-metadata_archaea <- data.frame(tax_table(physeq_archaea))%>% rownames_to_column(., "genome")
-archaea_tree <- keep.tip(genome_tree, tip=metadata_archaea$genome) 
-phylogenetic <- data.frame(physeq_archaea@otu_table) %>%
-#  column_to_rownames(var = "genome") %>%
-  dplyr::select(where(~ !all(. == 0))) %>%
-  hilldiv(., q = 1, tree = archaea_tree) %>%
-  t() %>%
-  as.data.frame() %>%
-  dplyr::rename(phylogenetic = 1) %>%
-  rownames_to_column(var = "sample")
-
-# Aggregate basal GIFT into elements
-counts_archaea <- data.frame(physeq_archaea@otu_table) %>% 
-  as.data.frame() %>% 
-  rownames_to_column(., "genome")
-counts_archaea_func <- counts_archaea[counts_archaea$genome %in% rownames(genome_gifts),]
-genome_gifts_archaea <- genome_gifts[counts_archaea$genome,]
-
-dist <- genome_gifts_archaea %>%
-  to.elements(., GIFT_db) %>%
-  traits2dist(., method = "gower")
-
-functional <- counts_archaea %>%
-  filter(genome %in% rownames(dist)) %>%
-  column_to_rownames(var = "genome") %>%
-#  dplyr::select(where(~ !all(. == 0))) %>%
-  hilldiv(., q = 1, dist = dist) %>%
-  t() %>%
-  as.data.frame() %>%
-  dplyr::rename(functional = 1) %>%
-  rownames_to_column(var = "sample") %>%
-  mutate(functional = if_else(is.nan(functional), 1, functional))
-
-# Merge all metrics
-alpha_div <- richness %>%
-  full_join(neutral, by = join_by(sample == sample)) %>%
-  full_join(phylogenetic, by = join_by(sample == sample)) %>%
-  full_join(functional, by = join_by(sample == sample))
-
-alpha_div
-```
-
-### Richness
-```{r archaea_div_rich, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-alpha_div %>%
-  pivot_longer(-sample, names_to = "metric", values_to = "value") %>%
-  left_join(., sample_metadata, by = join_by(sample == sample)) %>%
-  filter(!region %in% c("Eskoriatza","Villabona")) %>% 
-  filter(metric=="richness") %>%
-  ggplot(aes(y = value, x = region, group=region, color=region, fill=region)) +
-  geom_jitter()+
-  geom_boxplot(alpha=0.5, outlier.shape = NA)  +
-  scale_color_manual(values=location_colors)+
-  scale_fill_manual(values=location_colors) +
-  coord_cartesian(xlim = c(1, NA)) +
-  theme_classic() +
-  theme(
-    strip.background = element_blank(),
-    panel.grid.minor.x = element_line(size = .1, color = "grey"),
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 1)
-      )
-```
-
-
-### Neutral
-```{r archaea_div_neutral, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-alpha_div %>%
-  pivot_longer(-sample, names_to = "metric", values_to = "value") %>%
-  left_join(., sample_metadata, by = join_by(sample == sample)) %>%
-  filter(!region %in% c("Eskoriatza","Villabona")) %>% 
-  filter(metric=="neutral") %>%
-  ggplot(aes(y = value, x = region, group=region, color=region, fill=region)) +
-  geom_jitter()+
-  geom_boxplot(alpha=0.5, outlier.shape = NA)  +
-  scale_color_manual(values=location_colors)+
-  scale_fill_manual(values=location_colors) +
-  coord_cartesian(xlim = c(1, NA)) +
-  theme_classic() +
-  theme(
-    strip.background = element_blank(),
-    panel.grid.minor.x = element_line(size = .1, color = "grey"),
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 1)
-      )
-```
-
-
-### Phylogenetic
-```{r archaea_div_phylo, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-alpha_div %>%
-  pivot_longer(-sample, names_to = "metric", values_to = "value") %>%
-  left_join(., sample_metadata, by = join_by(sample == sample)) %>%
-  filter(!region %in% c("Eskoriatza","Villabona")) %>% 
-  filter(metric=="phylogenetic") %>%
-  ggplot(aes(y = value, x = region, group=region, color=region, fill=region)) +
-  geom_jitter()+
-  geom_boxplot(alpha=0.5, outlier.shape = NA)  +
-  scale_color_manual(values=location_colors)+
-  scale_fill_manual(values=location_colors) +
-  coord_cartesian(xlim = c(1, NA)) +
-  theme_classic() +
-  theme(
-    strip.background = element_blank(),
-    panel.grid.minor.x = element_line(size = .1, color = "grey"),
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 1)
-      )
-```

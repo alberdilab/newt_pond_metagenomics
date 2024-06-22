@@ -105,4 +105,56 @@ damr %>%
 damr %>% 
   summarise(mean=mean(damr),sd=sd(damr)) %>% 
   tt()
+
+samples_50damr <- damr %>% 
+  filter(damr>50) %>% 
+  select(sample)
 ```
+
+### Samples discarded (damr < 80)
+```{r damr_filtered, message=FALSE, warning=FALSE}
+samples_lowdamr <- damr %>% 
+  filter(damr<80) %>% 
+  select(sample)
+
+sample_metadata[sample_metadata$sample %in% samples_lowdamr$sample,] %>% count(region, type, season, sort = TRUE)
+```
+
+```{r damr_filtered_data, message=FALSE, warning=FALSE, eval=FALSE}
+sample_metadata[!sample_metadata$sample %in% samples_lowdamr$sample,] %>% count(region, type, season,sort = TRUE)
+sample_metadata_filtdamr <- sample_metadata[!sample_metadata$sample %in% samples_lowdamr$sample,]
+genome_counts_filtdamr <- genome_counts_filt %>%
+  select(c("genome",sample_metadata_filtdamr$sample))%>%
+  filter(rowSums(across(where(is.numeric)))!=0)
+genome_metadata_filtdamr <- genome_metadata %>%
+  semi_join(., genome_counts_filtdamr, by = "genome") %>% 
+  arrange(match(genome,genome_counts_filtdamr$genome))
+genome_metadata_removed <- genome_metadata %>%
+  anti_join(., genome_counts_filtdamr, by = "genome") %>% 
+  arrange(match(genome,genome_counts_filtdamr$genome))
+genome_tree_filtdamr <- keep.tip(genome_tree, tip=genome_metadata_filtdamr$genome) 
+genome_counts_filt_func <- genome_counts_filt[genome_counts_filt$genome %in% rownames(genome_gifts),]
+genome_gifts_filtdamr <- genome_gifts[rownames(genome_gifts) %in% genome_counts_filtdamr$genome,]
+genome_gifts_filtdamr <- genome_gifts_filtdamr[, colSums(genome_gifts_filtdamr != 0) > 0]
+phylum_colors_filtdamr <- read_tsv("https://raw.githubusercontent.com/earthhologenome/EHI_taxonomy_colour/main/ehi_phylum_colors.tsv") %>%
+    right_join(genome_metadata_filtdamr, by=join_by(phylum == phylum)) %>%
+    arrange(match(genome, genome_tree_filtdamr$tip.label)) %>%
+    select(phylum, colors) %>% 
+    unique() %>%
+    arrange(phylum) %>%
+    pull(colors, name=phylum)
+```
+
+```{r damr_filtered_save, message=FALSE, warning=FALSE, eval=FALSE}
+save(sample_metadata_filtdamr,
+     genome_counts_filtdamr,
+     genome_metadata_filtdamr,
+     genome_tree_filtdamr,
+     genome_gifts_filtdamr,
+     phylum_colors_filtdamr,
+     location_colors,
+     type_colors,
+     file = "data/data_filtdamr_80.Rdata"
+     )
+```
+

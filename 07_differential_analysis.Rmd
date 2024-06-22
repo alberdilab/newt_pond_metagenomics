@@ -1,0 +1,507 @@
+
+```{r load_data_mag_filtdamr_diffe, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+load("data/data_filtdamr_80.Rdata")
+sample_metadata <- sample_metadata_filtdamr
+genome_counts_filt <- genome_counts_filtdamr
+genome_metadata <- genome_metadata_filtdamr
+genome_tree <- genome_tree_filtdamr
+genome_gifts <- genome_gifts_filtdamr
+phylum_colors <- phylum_colors_filtdamr
+```
+
+```{r phyloseq, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+#Phyloseq object
+count_phy <- genome_counts_filt %>%
+  column_to_rownames(var="genome")%>%
+  otu_table(., taxa_are_rows=T)
+
+sample_info_tab_phy <- sample_metadata%>%
+  column_to_rownames(var="sample")%>%
+  sample_data()
+
+TAX <- genome_metadata%>%
+  column_to_rownames(var="genome")%>%
+  select(1:7)%>%
+  as.matrix()%>%
+  tax_table()
+tree <- phy_tree(genome_tree)
+
+physeq_all = phyloseq(count_phy, TAX, sample_info_tab_phy, tree)
+```
+
+
+# Structural zeros
+
+```{r struct_zero, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+spring_samples <- sample_metadata %>% 
+  filter(season == "spring") %>%
+  dplyr::select(sample) %>%
+  pull()
+
+autumn_samples <- sample_metadata %>% 
+  filter(season == "autumn") %>%
+  dplyr::select(sample) %>% pull()
+
+structural_zeros <- genome_counts_filt %>% 
+   rowwise() %>% #compute for each row (genome)
+   mutate(all_zeros_spring = all(c_across(all_of(spring_samples)) == 0)) %>% # set true if all samples in TJ1 have zeros
+   mutate(all_zeros_autumn = all(c_across(all_of(autumn_samples)) == 0)) %>% # set true if all samples in TJ2 have zeros
+   mutate(average_spring = mean(c_across(all_of(spring_samples)), na.rm = TRUE)) %>% # get average genome counts across TJ1
+   mutate(average_autumn = mean(c_across(all_of(autumn_samples)), na.rm = TRUE)) %>% # get average genome counts across TJ2
+   filter(all_zeros_spring == TRUE || all_zeros_autumn==TRUE)  %>% # filter only genomes with structural zeros
+   mutate(present = case_when(
+      all_zeros_spring & !all_zeros_autumn ~ "autumn",
+      !all_zeros_spring & all_zeros_autumn ~ "spring",
+      !all_zeros_spring & !all_zeros_autumn ~ "None",
+      TRUE ~ NA_character_
+    )) %>%
+   mutate(average = ifelse(present == "spring", average_spring, average_autumn)) %>%
+   dplyr::select(genome, present, average) %>%
+   left_join(genome_metadata, by=join_by(genome==genome)) %>%
+   arrange(present,-average)
+```
+
+```{r structu_Zero_plot, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+#Get phylum colors from the EHI standard
+# phylum_colors <- read_tsv("https://raw.githubusercontent.com/earthhologenome/EHI_taxonomy_colour/main/ehi_phylum_colors.tsv") %>%
+# #  mutate_at(vars(phylum), ~ str_replace(., "[dpcofgs]__", "")) %>%
+#   right_join(structural_zeros, by=join_by(phylum == phylum)) %>%
+#   dplyr::select(phylum, colors) %>%
+# #  mutate(colors = str_c(colors, "80"))  %>% #add 80% alpha
+#   unique() %>%
+#   arrange(phylum) %>%
+#   dplyr::select(colors) %>%
+#   pull()
+
+structural_zeros %>%
+    mutate(average = ifelse(present == "spring", average * -1, average)) %>%
+  #mutate(genus = factor(genus, levels = genus))#convert TJ1 genome counts to negative
+    ggplot(., aes(x=average, y=forcats::fct_rev(genus), fill=phylum)) +
+  geom_col()+
+#      geom_jitter(height = 0.01, size=3) +
+      geom_vline(xintercept=0) + 
+      xlim(-max(structural_zeros$average)-3,max(structural_zeros$average)+3) +
+      scale_fill_manual(values=phylum_colors) +
+      geom_text(aes(-max(structural_zeros$average), 25), label = "Only present\nin spring", color="#666666") +
+      geom_text(aes(max(structural_zeros$average), 25), label = "Only present\nin autumn", color="#666666") +
+     theme(
+          panel.background = element_blank(),
+          axis.line = element_line(size = 0.5, linetype = "solid", colour = "black"))+
+      labs(y="Genus",x="Genome counts") + 
+      guides(col=guide_legend("Phylum"))
+```
+
+## Enrichment analysis between Domestic/Feral
+
+```{r zero_phylo, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+#phyloseq object considering structual zeros
+phylo_samples <- sample_metadata %>% 
+                    column_to_rownames("sample") %>% 
+                    sample_data() #convert to phyloseq sample_data object
+phylo_genome <- genome_counts_filt %>% 
+                    filter(!genome %in% structural_zeros$genome) %>% # remove structural zeros
+                    column_to_rownames("genome") %>% 
+                    mutate_all(~ replace(., . == 0, 0.00001)) %>% #add pseudo counts to avoid structural zero issues (note this approach can be improved!)
+                    otu_table(., taxa_are_rows = TRUE)
+phylo_taxonomy <- genome_metadata %>% 
+                    filter(genome %in% rownames(phylo_genome)) %>% # remove structural zeros
+                    mutate(genome2=genome) %>% #create a pseudo genome name column
+                    column_to_rownames("genome2") %>% 
+                    dplyr::select(domain,phylum,class,order,family,genus,species,genome) %>% #add an additional taxonomic level to ensure genome-level analysis (as no all genomes have species-level taxonomic assignments. Otherwise, ANCOMBC2 aggregates analyses per species)
+                    as.matrix() %>% 
+                    tax_table() #convert to phyloseq tax_table object
+
+physeq_genome_filtered <- phyloseq(phylo_genome, phylo_taxonomy, phylo_samples)
+physeq_genome_filtered_clr <- microbiome::transform(physeq_genome_filtered, 'clr')
+
+```
+
+
+
+## Ancombc2
+
+### MAG
+#### Type of pond
+
+```{r ancom_rand_pond, comment="", echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
+set.seed(1234) #set seed for reproducibility
+ancom_rand_output = ancombc2(data = physeq_genome_filtered, 
+                  assay_name = "counts", 
+                  tax_level = NULL, #change to agglomerate analysis to a higher taxonomic range
+                  fix_formula = "type", #fixed variable(s)
+                  rand_formula = "(1|region)",
+                  p_adj_method = "holm", 
+                  pseudo_sens = TRUE,
+                  prv_cut =0, 
+                  lib_cut = 0, 
+                  s0_perc = 0.05,
+                  group = NULL, 
+                  struc_zero = FALSE, 
+                  neg_lb = FALSE,
+                  alpha = 0.05, 
+                  n_cl = 2, 
+                  verbose = TRUE,
+                  global = FALSE, 
+                  pairwise = FALSE, 
+                  dunnet = FALSE, 
+                  trend = FALSE,
+                  iter_control = list(tol = 1e-5, max_iter = 20, verbose = FALSE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = lme4::lmerControl(),
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100), 
+                  trend_control = NULL)
+
+```
+
+
+#### Season
+```{r ancom_rand_season, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+set.seed(1234) #set seed for reproducibility
+ancom_rand_output_mag_Struc1 = ancombc2(data = physeq_genome_filtered, 
+                  assay_name = "counts", 
+                  tax_level = NULL, #change to agglomerate analysis to a higher taxonomic range
+                  fix_formula = "season", #fixed variable(s)
+                  rand_formula = "(1|region)",
+                  p_adj_method = "holm", 
+                  pseudo_sens = TRUE,
+                  prv_cut =0, 
+                  lib_cut = 0, 
+                  s0_perc = 0.05,
+                  group = NULL, 
+                  struc_zero = FALSE, 
+                  neg_lb = FALSE,
+                  alpha = 0.05, 
+                  n_cl = 2, 
+                  verbose = TRUE,
+                  global = FALSE, 
+                  pairwise = FALSE, 
+                  dunnet = FALSE, 
+                  trend = FALSE,
+                  iter_control = list(tol = 1e-5, max_iter = 20, verbose = FALSE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = lme4::lmerControl(),
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100), 
+                  trend_control = NULL)
+
+```
+```{r ancom_rand1, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+taxonomy <- data.frame(physeq_genome_filtered@tax_table) %>%
+  rownames_to_column(., "taxon") %>%
+  mutate_at(vars(order, family, genus, species), ~ str_replace(., "[dpcofgs]__", ""))%>%
+  mutate(across(c(family,genus, species), na_if, ""))%>%
+    mutate(family = coalesce(family, paste('Unclassified', order)),
+           genus = coalesce(genus, 
+                              if_else(grepl('^Unclassified', family),
+                                      family, paste('Unclassified', family))),
+           species = coalesce(species, 
+                              if_else(grepl('^Unclassified', genus),
+                                      genus, paste('Unclassified', genus))))
+
+ancombc_rand_table_mag <- ancom_rand_output_mag_Struc1$res %>%
+  dplyr::select(taxon, lfc_seasonspring, p_seasonspring) %>%
+  filter(p_seasonspring < 0.05) %>%
+  dplyr::arrange(p_seasonspring) %>%
+  merge(., taxonomy, by="taxon") %>%
+#  mutate_at(vars(phylum, species), ~ str_replace(., "[dpcofgs]__", ""))%>%
+  dplyr::arrange(lfc_seasonspring)
+  
+colors_alphabetic <- read_tsv("https://raw.githubusercontent.com/earthhologenome/EHI_taxonomy_colour/main/ehi_phylum_colors.tsv") %>%
+#  mutate_at(vars(phylum), ~ str_replace(., "[dpcofgs]__", ""))  %>%
+  right_join(taxonomy, by=join_by(phylum == phylum)) %>%
+  dplyr::select(phylum, colors) %>%
+  mutate(colors = str_c(colors, "80"))  %>% #add 80% alpha
+	unique() %>%
+	dplyr::arrange(phylum)
+
+tax_table <- as.data.frame(unique(ancombc_rand_table_mag$phylum))
+  
+  
+colnames(tax_table)[1] <- "phylum"
+tax_color <- merge(tax_table, colors_alphabetic, by="phylum")%>%
+	dplyr::arrange(phylum) %>%
+	dplyr::select(colors) %>%
+	pull()
+```
+```{r ancombc_rand_plot_phy, comment="", echo=FALSE, message=FALSE, warning=FALSE, fig.height=10, fig.width=8, fig.fullwidth=TRUE, eval=FALSE}
+ancombc_rand_table_mag%>%
+      mutate(genome=factor(genome,levels=ancombc_rand_table_mag$genome)) %>%
+ggplot(., aes(x=lfc_seasonspring, y=forcats::fct_reorder(species,lfc_seasonspring), fill=phylum)) + #forcats::fct_rev()
+  geom_col() + 
+  scale_fill_manual(values=tax_color) + 
+  geom_hline(yintercept=0) + 
+#  coord_flip()+
+  theme(panel.background = element_blank(),
+        axis.line = element_line(size = 0.5, linetype = "solid", colour = "black"),
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 8),
+        axis.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.position = "right", legend.box = "vertical")+
+  xlab("log2FoldChange") + 
+  ylab("Species")+
+  guides(fill=guide_legend(title="Phylum"))
+```
+
+```{r ancombc_rand_plot_Season, comment="", echo=FALSE, message=FALSE, warning=FALSE, fig.height=10, fig.width=8, fig.fullwidth=TRUE}
+ancombc_rand_table_mag%>%
+      mutate(genome=factor(genome,levels=ancombc_rand_table_mag$genome)) %>%
+ggplot(., aes(x=lfc_seasonspring, y=forcats::fct_reorder(genome,lfc_seasonspring), fill=phylum)) + #forcats::fct_rev()
+  geom_col() + 
+  scale_fill_manual(values=tax_color) + 
+  geom_hline(yintercept=0) + 
+#  coord_flip()+
+  theme(panel.background = element_blank(),
+        axis.line = element_line(size = 0.5, linetype = "solid", colour = "black"),
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 8),
+        axis.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.position = "right", legend.box = "vertical")+
+  xlab("log2FoldChange") + 
+  ylab("Genome")+
+  guides(fill=guide_legend(title="Phylum"))
+```
+```{r ancom_rand_volcano, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+# phylum_colors <- read_tsv("https://raw.githubusercontent.com/earthhologenome/EHI_taxonomy_colour/main/ehi_phylum_colors.tsv") %>%
+#     right_join(genome_metadata, by=join_by(phylum == phylum)) %>%
+#     arrange(match(genome, genome_tree$tip.label)) %>%
+#     select(phylum, colors) %>% 
+#     unique() %>%
+#     arrange(phylum) %>%
+#     pull(colors, name=phylum)
+
+#pdf("figures/different_species_StrucZero_new_violin.pdf",width=12, height=6)
+ancom_rand_output_mag_Struc1$res %>%
+  na.omit() %>%
+  dplyr::select(genome=taxon, lfc_seasonspring, p_seasonspring) %>%
+  left_join(genome_metadata, by = join_by(genome == genome)) %>%
+  mutate(phylum = ifelse(p_seasonspring < 0.05, phylum, NA)) %>%
+  ggplot(., aes(x = lfc_seasonspring, y = -log(p_seasonspring), color = phylum)) +
+  geom_point(size=3, show.legend = FALSE) +
+  #xlim(c(-10,4)) +
+  scale_color_manual(values = phylum_colors) +
+  labs(color = "Significant phylum", x = "Log-fold difference between sample types", y = "p-value") +
+  theme_classic()
+#dev.off()
+```
+### Season
+#### Phylum level
+
+```{r ancom_phylum_type, comment="", echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
+#### Type of pond
+ancom_rand_output_phyl_type = ancombc2(data = physeq_genome_filtered, 
+                  assay_name = "counts", 
+                  tax_level = "phylum", #change to agglomerate analysis to a higher taxonomic range
+                  fix_formula = "type", #fixed variable(s)
+#                  rand_formula = "(1|region)",
+                  p_adj_method = "holm", 
+                  pseudo_sens = TRUE,
+                  prv_cut = 0, 
+                  lib_cut = 0, 
+                  s0_perc = 0.05,
+                  group = NULL, 
+                  struc_zero = FALSE, 
+                  neg_lb = FALSE,
+                  alpha = 0.05, 
+                  n_cl = 2, 
+                  verbose = TRUE,
+                  global = FALSE, 
+                  pairwise = FALSE, 
+                  dunnet = FALSE, 
+                  trend = FALSE,
+                  iter_control = list(tol = 1e-5, max_iter = 20, verbose = FALSE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = NULL,
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100), 
+                  trend_control = NULL)
+```
+
+
+
+```{r ancom_phylum, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+ancom_rand_output_phyl_Struc1 = ancombc2(data = physeq_genome_filtered, 
+                  assay_name = "counts", 
+                  tax_level = "phylum", #change to agglomerate analysis to a higher taxonomic range
+                  fix_formula = "season", #fixed variable(s)
+                  rand_formula = "(1|region)",
+                  p_adj_method = "holm", 
+                  pseudo_sens = TRUE,
+                  prv_cut = 0, 
+                  lib_cut = 0, 
+                  s0_perc = 0.05,
+                  group = NULL, 
+                  struc_zero = FALSE, 
+                  neg_lb = FALSE,
+                  alpha = 0.05, 
+                  n_cl = 2, 
+                  verbose = TRUE,
+                  global = FALSE, 
+                  pairwise = FALSE, 
+                  dunnet = FALSE, 
+                  trend = FALSE,
+                  iter_control = list(tol = 1e-5, max_iter = 20, verbose = FALSE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = lme4::lmerControl(),
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100), 
+                  trend_control = NULL)
+```
+
+```{r ancom_rand_phylum, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+ancom_rand_output_phyl_Struc1$res %>%
+  dplyr::select(taxon, lfc_seasonspring, p_seasonspring) %>%
+  filter(p_seasonspring < 0.05) %>%
+  dplyr::arrange(p_seasonspring) 
+```
+
+#### Family level
+```{r ancom_family, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+ancom_rand_output_family_Struc = ancombc2(data = physeq_genome_filtered, 
+                  assay_name = "counts", 
+                  tax_level = "family", #change to agglomerate analysis to a higher taxonomic range
+                  fix_formula = "season", #fixed variable(s)
+                  rand_formula = "(1|region)",
+                  p_adj_method = "holm", 
+                  pseudo_sens = TRUE,
+                  prv_cut = 0, 
+                  lib_cut = 0, 
+                  s0_perc = 0.05,
+                  group = NULL, 
+                  struc_zero = FALSE, 
+                  neg_lb = FALSE,
+                  alpha = 0.05, 
+                  n_cl = 2, 
+                  verbose = TRUE,
+                  global = FALSE, 
+                  pairwise = FALSE, 
+                  dunnet = FALSE, 
+                  trend = FALSE,
+                  iter_control = list(tol = 1e-5, max_iter = 20, verbose = FALSE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = lme4::lmerControl(),
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100), 
+                  trend_control = NULL)
+```
+```{r ancom_rand_family, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+ancom_rand_output_family_Struc$res %>%
+  dplyr::select(taxon, lfc_seasonspring, p_seasonspring) %>%
+  filter(p_seasonspring < 0.05) %>%
+  dplyr::arrange(p_seasonspring) 
+```
+```{r ancom_rand_family1, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+tax <- data.frame(physeq_genome_filtered@tax_table) %>%
+  rownames_to_column(., "taxon") %>%
+  mutate_at(vars(phylum, family), ~ str_replace(., "[dpcofgs]__", ""))%>%
+  select(phylum, family)%>%
+	unique()
+
+ancombc_rand_table_family <- ancom_rand_output_family_Struc$res %>%
+  mutate_at(vars(taxon), ~ str_replace(., "[dpcofgs]__", ""))%>%
+  dplyr::select(taxon, lfc_seasonspring, p_seasonspring) %>%
+  filter(p_seasonspring < 0.05) %>%
+  dplyr::arrange(lfc_seasonspring)  %>%
+  left_join(tax, by=join_by(taxon == family)) %>%
+  dplyr::arrange(lfc_seasonspring)
+
+  
+colors_alphabetic <- read_tsv("https://raw.githubusercontent.com/earthhologenome/EHI_taxonomy_colour/main/ehi_phylum_colors.tsv") %>%
+  mutate_at(vars(phylum), ~ str_replace(., "[dpcofgs]__", ""))  %>%
+  right_join(tax, by=join_by(phylum == phylum)) %>%
+  dplyr::select(phylum, colors) %>%
+  mutate(colors = str_c(colors, "80"))  %>% #add 80% alpha
+	unique() %>%
+	dplyr::arrange(phylum)
+
+tax_table <- as.data.frame(unique(ancombc_rand_table_family$phylum))
+  
+colnames(tax_table)[1] <- "phylum"
+tax_color <- merge(tax_table, colors_alphabetic, by="phylum")%>%
+	dplyr::arrange(phylum) %>%
+	dplyr::select(colors) %>%
+	pull()
+```
+
+```{r ancombc_rand_family_plot, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+ancombc_rand_table_family%>%
+      mutate(taxon=factor(taxon,levels=ancombc_rand_table_family$taxon)) %>%
+ggplot(., aes(x=lfc_seasonspring, y=forcats::fct_rev(taxon), fill=phylum)) + #forcats::fct_rev()
+  geom_col() + 
+  scale_fill_manual(values=tax_color) + 
+  geom_hline(yintercept=0) + 
+#  coord_flip()+
+  theme(panel.background = element_blank(),
+        axis.line = element_line(size = 0.5, linetype = "solid", colour = "black"),
+        axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.position = "right", legend.box = "vertical")+
+  xlab("log2FoldChange") + 
+  ylab("Family")+
+  guides(fill=guide_legend(title="Phylum"))
+```
+```{r ancom_rand_volcano_Family, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+ancom_rand_output_family_Struc$res %>%
+  na.omit() %>%
+  dplyr::select(genome=taxon, lfc_seasonspring, p_seasonspring) %>%
+  left_join(genome_metadata, by = join_by(genome == genome)) %>%
+  mutate(phylum = ifelse(p_seasonspring < 0.05, phylum, NA)) %>%
+  ggplot(., aes(x = lfc_seasonspring, y = -log(p_seasonspring), color = phylum)) +
+  geom_point(size=3, show.legend = FALSE) +
+  #xlim(c(-10,4)) +
+  scale_color_manual(values = phylum_colors) +
+  labs(color = "Significant phylum", x = "Log-fold difference between sample types", y = "p-value") +
+  theme_classic()
+```
+```{r ancom_randF_volcano, comment="", echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
+ancom_result <- ancom_rand_output_family_Struc$res %>%
+  na.omit() %>%
+  dplyr::rename(genome=taxon) %>%
+  left_join(genome_metadata,by=join_by(genome==genome))
+ancom_result %>%
+    mutate(significance = ifelse(p_seasonspring < 0.05, "1", "0")) %>%
+    ggplot(., aes(x=-log(p_seasonspring), y=lfc_seasonspring, color=significance)) +
+      geom_point() +
+      scale_color_manual(values = c("#cccccc","#00FFFF")) +
+      geom_text(aes(0.5, 5), label = "Enriched\nin Tame", color="#666666") +
+      geom_text(aes(0.5, -5), label = "Enriched\nin Feral", color="#666666") +
+      labs(color="Significance", y="Difference between behaviours", x="p-value") +
+      theme_classic()
+```
+#### Genera
+```{r ancom_genera, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+ancom_rand_output_gen_Struc = ancombc2(data = physeq_genome_filtered, 
+                  assay_name = "counts", 
+                  tax_level = "genus", #change to agglomerate analysis to a higher taxonomic range
+                  fix_formula = "season", #fixed variable(s)
+                  rand_formula = "(1|region)",
+                  p_adj_method = "holm", 
+                  pseudo_sens = TRUE,
+                  prv_cut = 0, 
+                  lib_cut = 0, 
+                  s0_perc = 0.05,
+                  group = NULL, 
+                  struc_zero = FALSE, 
+                  neg_lb = FALSE,
+                  alpha = 0.05, 
+                  n_cl = 2, 
+                  verbose = TRUE,
+                  global = FALSE, 
+                  pairwise = FALSE, 
+                  dunnet = FALSE, 
+                  trend = FALSE,
+                  iter_control = list(tol = 1e-5, max_iter = 20, verbose = FALSE),
+                  em_control = list(tol = 1e-5, max_iter = 100),
+                  lme_control = lme4::lmerControl(),
+                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100), 
+                  trend_control = NULL)
+```
+
+```{r ancom_rand_genera, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+ancom_rand_output_gen_Struc$res %>%
+  dplyr::select(taxon, lfc_seasonspring, p_seasonspring) %>%
+  filter(p_seasonspring < 0.05) %>%
+  dplyr::arrange(p_seasonspring) 
+```
