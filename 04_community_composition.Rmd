@@ -213,7 +213,6 @@ phylum_summary %>%
   labs(y="Family", x="Relative abundance", color="Phylum")
 ```
 
-
 ### Per season
 ```{r taxonomy_phylum_summary_season, warning=FALSE, comments="", message=FALSE}
 phylum_summary %>%
@@ -255,6 +254,13 @@ family_summary <- genome_counts_filt %>%
   group_by(sample,family, type, region, season) %>%
   summarise(relabun=sum(count))
 
+family_arrange <- family_summary %>%
+    group_by(family) %>%
+    summarise(mean=sum(relabun)) %>%
+    arrange(-mean) %>%
+    select(family) %>%
+    pull()
+
 family_summary %>%
     left_join(genome_metadata %>% dplyr::select(family,phylum) %>% unique(),by=join_by(family==family)) %>%
 #    left_join(sample_metadata,by=join_by(sample==sample)) %>%
@@ -262,7 +268,7 @@ family_summary %>%
     mutate(family=factor(family,levels=rev(family_arrange[1:20]))) %>%
     filter(relabun > 0) %>%
     ggplot(aes(x=relabun, y=family, group=family, color=phylum)) +
-        scale_color_manual(values=phylum_colors[-8]) +
+        scale_color_manual(values=phylum_colors) +
         geom_jitter(alpha=0.5) + 
         theme_minimal() + 
         labs(y="Family", x="Relative abundance", color="Phylum")
@@ -304,7 +310,7 @@ family_summary %>%
     mutate(family=factor(family,levels=rev(family_arrange[1:20]))) %>%
     filter(relabun > 0) %>%
     ggplot(aes(x=relabun, y=family, group=family, color=phylum)) +
-        scale_color_manual(values=phylum_colors[-8]) +
+        scale_color_manual(values=phylum_colors) +
         geom_jitter(alpha=0.5) + 
         facet_grid(.~type)+
         theme_minimal() + 
@@ -427,6 +433,12 @@ genus_summary %>%
     arrange(-total_mean) %>% 
     dplyr::select(genus,total,spring,autumn) %>% 
     tt()
+
+genus_summary_sort <- genus_summary %>%
+    group_by(genus) %>%
+    summarise(mean=mean(relabun, na.rm=T),sd=sd(relabun, na.rm=T)) %>%
+    arrange(-mean) 
+
 ```
 
 ```{r taxonomy_jitterplot_genus_season, fig.height=14, fig.width=10, fig.fullwidth=TRUE}

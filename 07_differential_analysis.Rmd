@@ -1,6 +1,7 @@
 
 ```{r load_data_mag_filtdamr_diffe, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 load("data/data_filtdamr_80.Rdata")
+load("data/ancombc.Rdata")
 sample_metadata <- sample_metadata_filtdamr
 genome_counts_filt <- genome_counts_filtdamr
 genome_metadata <- genome_metadata_filtdamr
@@ -75,8 +76,8 @@ structural_zeros <- genome_counts_filt %>%
 
 structural_zeros %>%
     mutate(average = ifelse(present == "spring", average * -1, average)) %>%
-  #mutate(genus = factor(genus, levels = genus))#convert TJ1 genome counts to negative
-    ggplot(., aes(x=average, y=forcats::fct_rev(genus), fill=phylum)) +
+  mutate(genome = factor(genome, levels = genome)) %>% #convert TJ1 genome counts to negative
+    ggplot(., aes(x=average, y=forcats::fct_reorder(genome,average), fill=phylum)) +
   geom_col()+
 #      geom_jitter(height = 0.01, size=3) +
       geom_vline(xintercept=0) + 
@@ -91,7 +92,7 @@ structural_zeros %>%
       guides(col=guide_legend("Phylum"))
 ```
 
-## Enrichment analysis between Domestic/Feral
+## Enrichment analysis
 
 ```{r zero_phylo, comment="", echo=FALSE, message=FALSE, warning=FALSE}
 #phyloseq object considering structual zeros
@@ -120,42 +121,10 @@ physeq_genome_filtered_clr <- microbiome::transform(physeq_genome_filtered, 'clr
 
 ## Ancombc2
 
-### MAG
-#### Type of pond
+### Season
 
-```{r ancom_rand_pond, comment="", echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
-set.seed(1234) #set seed for reproducibility
-ancom_rand_output = ancombc2(data = physeq_genome_filtered, 
-                  assay_name = "counts", 
-                  tax_level = NULL, #change to agglomerate analysis to a higher taxonomic range
-                  fix_formula = "type", #fixed variable(s)
-                  rand_formula = "(1|region)",
-                  p_adj_method = "holm", 
-                  pseudo_sens = TRUE,
-                  prv_cut =0, 
-                  lib_cut = 0, 
-                  s0_perc = 0.05,
-                  group = NULL, 
-                  struc_zero = FALSE, 
-                  neg_lb = FALSE,
-                  alpha = 0.05, 
-                  n_cl = 2, 
-                  verbose = TRUE,
-                  global = FALSE, 
-                  pairwise = FALSE, 
-                  dunnet = FALSE, 
-                  trend = FALSE,
-                  iter_control = list(tol = 1e-5, max_iter = 20, verbose = FALSE),
-                  em_control = list(tol = 1e-5, max_iter = 100),
-                  lme_control = lme4::lmerControl(),
-                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100), 
-                  trend_control = NULL)
-
-```
-
-
-#### Season
-```{r ancom_rand_season, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+#### MAG level
+```{r ancom_rand_season, comment="", echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
 set.seed(1234) #set seed for reproducibility
 ancom_rand_output_mag_Struc1 = ancombc2(data = physeq_genome_filtered, 
                   assay_name = "counts", 
@@ -286,41 +255,10 @@ ancom_rand_output_mag_Struc1$res %>%
   theme_classic()
 #dev.off()
 ```
-### Season
+
 #### Phylum level
 
-```{r ancom_phylum_type, comment="", echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
-#### Type of pond
-ancom_rand_output_phyl_type = ancombc2(data = physeq_genome_filtered, 
-                  assay_name = "counts", 
-                  tax_level = "phylum", #change to agglomerate analysis to a higher taxonomic range
-                  fix_formula = "type", #fixed variable(s)
-#                  rand_formula = "(1|region)",
-                  p_adj_method = "holm", 
-                  pseudo_sens = TRUE,
-                  prv_cut = 0, 
-                  lib_cut = 0, 
-                  s0_perc = 0.05,
-                  group = NULL, 
-                  struc_zero = FALSE, 
-                  neg_lb = FALSE,
-                  alpha = 0.05, 
-                  n_cl = 2, 
-                  verbose = TRUE,
-                  global = FALSE, 
-                  pairwise = FALSE, 
-                  dunnet = FALSE, 
-                  trend = FALSE,
-                  iter_control = list(tol = 1e-5, max_iter = 20, verbose = FALSE),
-                  em_control = list(tol = 1e-5, max_iter = 100),
-                  lme_control = NULL,
-                  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100), 
-                  trend_control = NULL)
-```
-
-
-
-```{r ancom_phylum, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+```{r ancom_phylum, comment="", echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
 ancom_rand_output_phyl_Struc1 = ancombc2(data = physeq_genome_filtered, 
                   assay_name = "counts", 
                   tax_level = "phylum", #change to agglomerate analysis to a higher taxonomic range
@@ -356,7 +294,7 @@ ancom_rand_output_phyl_Struc1$res %>%
 ```
 
 #### Family level
-```{r ancom_family, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+```{r ancom_family, comment="", echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
 ancom_rand_output_family_Struc = ancombc2(data = physeq_genome_filtered, 
                   assay_name = "counts", 
                   tax_level = "family", #change to agglomerate analysis to a higher taxonomic range
@@ -470,8 +408,9 @@ ancom_result %>%
       labs(color="Significance", y="Difference between behaviours", x="p-value") +
       theme_classic()
 ```
+
 #### Genera
-```{r ancom_genera, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+```{r ancom_genera, comment="", echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
 ancom_rand_output_gen_Struc = ancombc2(data = physeq_genome_filtered, 
                   assay_name = "counts", 
                   tax_level = "genus", #change to agglomerate analysis to a higher taxonomic range
@@ -504,4 +443,12 @@ ancom_rand_output_gen_Struc$res %>%
   dplyr::select(taxon, lfc_seasonspring, p_seasonspring) %>%
   filter(p_seasonspring < 0.05) %>%
   dplyr::arrange(p_seasonspring) 
+```
+
+```{r ancom_save, comment="", echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE}
+save(ancom_rand_output_mag_Struc1,
+     ancom_rand_output_phyl_Struc1,
+     ancom_rand_output_family_Struc,
+     ancom_rand_output_gen_Struc,
+     file="data/ancombc.Rdata")
 ```

@@ -65,10 +65,10 @@ in-autumn
 phylogenetic-1
 functional
 structural-zeros
-enrichment-analysis-between-domesticferal
+enrichment-analysis
 ancombc2
-mag
-type-of-pond
 season-1
+mag-level
+phylum-level
 family-level
 genera

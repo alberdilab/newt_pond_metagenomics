@@ -64,6 +64,11 @@ alpha_div <- richness %>%
   full_join(phylogenetic, by = join_by(sample == sample)) %>%
   full_join(functional, by = join_by(sample == sample))
 
+
+# sample_metadata_div <- sample_metadata %>% 
+#   left_join(alpha_div, by = join_by(sample == sample))
+# 
+# write_csv(sample_metadata_div, "data/sample_metadata_div.csv")  
 ```
 
 ## Types of pond
@@ -195,34 +200,36 @@ grid.arrange(arrangeGrob(plot1,plot2,plot3, plot4, ncol = 2))
 alpha_div_meta <- alpha_div %>%
   left_join(sample_metadata, by = join_by(sample == sample))
 
-##Negative Binomial
-library(MASS)
-Modelq0GLMMNB <- glm.nb(richness ~ type, data = alpha_div_meta,trace=TRUE)#USE THIS!
-summary(Modelq0GLMMNB)
+Model_richness <- glmer.nb(richness ~ type+(1|region), data = alpha_div_meta)
+summary(Model_richness)
 emmeans(Modelq0GLMMNB, pairwise ~ type)
-detach("package:MASS", unload = TRUE)
 ```
 
-```{r mixed_neut_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-Modelq1_Loca <- lm(formula = neutral ~ type, data = alpha_div_meta) 
-summary(Modelq1_Loca)
-emmeans(Modelq1_Loca, pairwise ~ type)
+```{r mixed_neutral_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+
+Model_neutral <- lme(fixed = neutral ~ type, data = alpha_div_meta,
+               random = ~ 1 | region)#log(seq_depth)+
+summary(Model_neutral)
+emmeans(Model_neutral, pairwise ~ type)
 ```
 
 ```{r mixed_phylo_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-Modelq1p_Loca <- lm(formula = phylogenetic ~ type, data = alpha_div_meta) 
-summary(Modelq1p_Loca)
-emmeans(Modelq1p_Loca, pairwise ~ type)
+Model_phylo <- lme(fixed = phylogenetic ~ type, data = alpha_div_meta,
+               random = ~ 1 | region)
+summary(Model_phylo)
+emmeans(Model_phylo, pairwise ~ type)
 ```
 
-```{r mixed_funct_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
-Modelq1F_Loca <- lm(formula = functional ~ type, data = alpha_div_meta) 
-summary(Modelq1F_Loca)
-emmeans(Modelq1F_Loca, pairwise ~ type)
+```{r mixed_func_type, comment="", echo=FALSE, message=FALSE, warning=FALSE}
+Model_funct <- lme(fixed = functional ~ type, data = alpha_div_meta,
+               random = ~ 1 | region)
+summary(Model_funct)
+emmeans(Model_funct, pairwise ~ type)
 ```
 
 ## Season
-```{r}
+```{r alpha_div_season, comment="",echo=FALSE, message=FALSE, warning=FALSE}
+season_colors <- c("#009270","#ac5c4c")
 alpha_div %>%
   pivot_longer(-sample, names_to = "alpha", values_to = "value") %>%
   left_join(sample_metadata, by = join_by(sample == sample)) %>%
